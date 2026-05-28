@@ -1,0 +1,41 @@
+- generic [ref=e2]:
+  - generic [ref=e6]:
+    - generic:
+      - list:
+        - listitem:
+          - link "Home" [ref=e7] [cursor=pointer]:
+            - /url: http://localhost:8501/
+            - generic [ref=e10]: 🎬
+            - generic: Home
+        - listitem:
+          - link "History" [ref=e11] [cursor=pointer]:
+            - /url: http://localhost:8501/History
+            - generic [ref=e14]: 📚
+            - generic: History
+  - generic [ref=e3]:
+    - banner [ref=e17]:
+      - generic [ref=e19]:
+        - button "keyboard_double_arrow_right" [ref=e22] [cursor=pointer]:
+          - generic [ref=e24]: keyboard_double_arrow_right
+        - generic [ref=e25]:
+          - button "Deploy" [ref=e27] [cursor=pointer]:
+            - generic [ref=e29]: Deploy
+          - button [ref=e31] [cursor=pointer]:
+            - img [ref=e32]
+    - alert [ref=e38]:
+      - generic [ref=e41]:
+        - generic [ref=e42]: "ModuleNotFoundError: No module named 'loguru'"
+        - generic [ref=e43]:
+          - generic [ref=e44]: "Traceback:"
+          - code [ref=e47]:
+            - generic [ref=e48]: File "/Users/byz/Documents/project/my/Pixelle-Video/web/app.py", line 62, in <module> main()
+            - generic [ref=e49]: File "/Users/byz/Documents/project/my/Pixelle-Video/web/app.py", line 58, in main pg.run()
+            - generic [ref=e50]: "File \"/Users/byz/Library/Python/3.9/lib/python/site-packages/streamlit/navigation/page.py\", line 300, in run exec(code, module.__dict__) # noqa: S102"
+            - generic [ref=e51]: File "/Users/byz/Documents/project/my/Pixelle-Video/web/pages/1_🎬_Home.py", line 29, in <module> from web.state.session import init_session_state, init_i18n, get_pixelle_video
+            - generic [ref=e52]: File "/Users/byz/Documents/project/my/Pixelle-Video/web/state/session.py", line 18, in <module> from loguru import logger
+        - generic [ref=e53]:
+          - button "Copy" [ref=e54] [cursor=pointer]
+          - link "Ask Google" [ref=e55] [cursor=pointer]:
+            - /url: https://www.google.com/search?q=ModuleNotFoundError%3A%20No%20module%20named%20'loguru'
+          - link "Ask ChatGPT" [ref=e56] [cursor=pointer]:
+            - /url: https://chatgpt.com/?q=ModuleNotFoundError%3A%20No%20module%20named%20'loguru'%0A%0AFile%20%22%2FUsers%2Fbyz%2FDocuments%2Fproject%2Fmy%2FPixelle-Video%2Fweb%2Fapp.py%22%2C%20line%2062%2C%20in%20%3Cmodule%3E%0A%20%20%20%20main()%0AFile%20%22%2FUsers%2Fbyz%2FDocuments%2Fproject%2Fmy%2FPixelle-Video%2Fweb%2Fapp.py%22%2C%20line%2058%2C%20in%20main%0A%20%20%20%20pg.run()%0AFile%20%22%2FUsers%2Fbyz%2FLibrary%2FPython%2F3.9%2Flib%2Fpython%2Fsite-packages%2Fstreamlit%2Fnavigation%2Fpage.py%22%2C%20line%20300%2C%20in%20run%0A%20%20%20%20exec(code%2C%20module.__dict__)%20%20%23%20noqa%3A%20S102%0AFile%20%22%2FUsers%2Fbyz%2FDocuments%2Fproject%2Fmy%2FPixelle-Video%2Fweb%2Fpages%2F1_%F0%9F%8E%AC_Home.py%22%2C%20line%2029%2C%20in%20%3Cmodule%3E%0A%20%20%20%20from%20web.state.session%20import%20init_session_state%2C%20init_i18n%2C%20get_pixelle_video%0AFile%20%22%2FUsers%2Fbyz%2FDocuments%2Fproject%2Fmy%2FPixelle-Video%2Fweb%2Fstate%2Fsession.py%22%2C%20line%2018%2C%20in%20%3Cmodule%3E%0A%20%20%20%20from%20loguru%20import%20logger

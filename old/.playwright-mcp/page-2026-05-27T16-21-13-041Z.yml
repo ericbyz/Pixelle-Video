@@ -1,0 +1,187 @@
+- generic [ref=e2]:
+  - generic [ref=e6]:
+    - generic:
+      - list:
+        - listitem:
+          - link "Home" [ref=e7] [cursor=pointer]:
+            - /url: http://localhost:8501/
+            - generic [ref=e10]: 🎬
+            - generic: Home
+        - listitem:
+          - link "History" [ref=e11] [cursor=pointer]:
+            - /url: http://localhost:8501/History
+            - generic [ref=e14]: 📚
+            - generic: History
+    - generic [ref=e15]:
+      - group [ref=e18]:
+        - generic "keyboard_arrow_down 常见问题" [ref=e19] [cursor=pointer]:
+          - generic:
+            - generic [ref=e21]: keyboard_arrow_down
+            - generic:
+              - generic:
+                - paragraph: 常见问题
+        - generic [ref=e23]:
+          - group [ref=e26]:
+            - generic "keyboard_arrow_right 本地自己开发的工作流如何集成使用？" [ref=e27] [cursor=pointer]:
+              - generic:
+                - generic [ref=e29]: keyboard_arrow_right
+                - generic:
+                  - generic:
+                    - paragraph: 本地自己开发的工作流如何集成使用？
+          - group [ref=e32]:
+            - generic "keyboard_arrow_right 如何在本地调试项目中的 RunningHub 工作流？" [ref=e33] [cursor=pointer]:
+              - generic:
+                - generic [ref=e35]: keyboard_arrow_right
+                - generic:
+                  - generic:
+                    - paragraph: 如何在本地调试项目中的 RunningHub 工作流？
+          - group [ref=e38]:
+            - generic "keyboard_arrow_right 常见的报错及解决方案" [ref=e39] [cursor=pointer]:
+              - generic:
+                - generic [ref=e41]: keyboard_arrow_right
+                - generic:
+                  - generic:
+                    - paragraph: 常见的报错及解决方案
+          - group [ref=e44]:
+            - generic "keyboard_arrow_right 生成的视频保存在哪里？" [ref=e45] [cursor=pointer]:
+              - generic:
+                - generic [ref=e47]: keyboard_arrow_right
+                - generic:
+                  - generic:
+                    - paragraph: 生成的视频保存在哪里？
+          - group [ref=e50]:
+            - generic "keyboard_arrow_right 有哪些社区资源？" [ref=e51] [cursor=pointer]:
+              - generic:
+                - generic [ref=e53]: keyboard_arrow_right
+                - generic:
+                  - generic:
+                    - paragraph: 有哪些社区资源？
+      - paragraph [ref=e58]:
+        - text: 💡 需要更多帮助？
+        - link "GitHub Issues" [ref=e59] [cursor=pointer]:
+          - /url: https://github.com/AIDC-AI/Pixelle-Video/issues
+  - generic [ref=e3]:
+    - banner [ref=e62]:
+      - generic [ref=e64]:
+        - button "keyboard_double_arrow_right" [ref=e67] [cursor=pointer]:
+          - generic [ref=e69]: keyboard_double_arrow_right
+        - generic [ref=e70]:
+          - button "Deploy" [ref=e72] [cursor=pointer]:
+            - generic [ref=e74]: Deploy
+          - button [ref=e76] [cursor=pointer]:
+            - img [ref=e77]
+    - generic [ref=e80]:
+      - generic [ref=e82]:
+        - heading "⚡ Pixelle-Video" [level=3] [ref=e90]:
+          - text: ⚡ Pixelle-Video
+          - generic [ref=e91]:
+            - link "Link to heading":
+              - /url: "#pixelle-video"
+              - img
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - generic [ref=e101]: zh_CN - 简体中文
+            - combobox "Selected zh_CN - 简体中文. 🌐 语言" [ref=e103]
+          - img "open" [ref=e105]
+      - group [ref=e109]:
+        - generic "keyboard_arrow_right ⚙️ 系统配置（必需）" [ref=e110] [cursor=pointer]:
+          - generic [ref=e111]:
+            - generic [ref=e113]: keyboard_arrow_right
+            - paragraph [ref=e116]: ⚙️ 系统配置（必需）
+      - generic [ref=e121]:
+        - generic [ref=e122]: 选择创作流程
+        - generic [ref=e123]: 选择视频生成方式，然后按步骤完成当前任务。
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - generic [ref=e129]: ⚡ 快速创作
+          - combobox "Selected ⚡ 快速创作. 创作流程" [ref=e131]
+        - img "open" [ref=e133]
+      - radiogroup "button group" [ref=e137]:
+        - button "文案" [ref=e138] [cursor=pointer]:
+          - generic [ref=e141]: 文案
+        - button "风格" [ref=e142] [cursor=pointer]:
+          - generic [ref=e145]: 风格
+        - button "生成" [ref=e146] [cursor=pointer]:
+          - generic [ref=e149]: 生成
+      - generic [ref=e153]:
+        - generic [ref=e157]:
+          - paragraph [ref=e162]:
+            - strong [ref=e163]: 📝 视频脚本
+          - generic [ref=e166] [cursor=pointer]:
+            - checkbox "🔢 批量生成模式"
+            - generic [ref=e169]:
+              - paragraph [ref=e171]: 🔢 批量生成模式
+              - button "Help for 🔢 批量生成模式" [ref=e175]:
+                - img [ref=e176]
+          - radiogroup "Processing Mode" [ref=e181] [cursor=pointer]:
+            - generic [ref=e182]:
+              - radio "💡 AI 创作" [checked]
+              - paragraph [ref=e187]: 💡 AI 创作
+            - generic [ref=e188]:
+              - radio "✍️ 自行创作"
+              - paragraph [ref=e193]: ✍️ 自行创作
+          - generic [ref=e195]:
+            - generic [ref=e196]:
+              - paragraph [ref=e199]: 文本输入
+              - button "Help for 文本输入" [ref=e203] [cursor=pointer]:
+                - img [ref=e204]
+            - textbox "文本输入" [ref=e209]:
+              - /placeholder: "AI 自动创作指定数量的旁白\n例如：如何增加被动收入、How to build passive income"
+          - generic [ref=e211]:
+            - generic [ref=e212]:
+              - paragraph [ref=e215]: 标题（可选）
+              - button "Help for 标题（可选）" [ref=e219] [cursor=pointer]:
+                - img [ref=e220]
+            - textbox "标题（可选）" [ref=e225]:
+              - /placeholder: 视频标题（留空则自动生成）
+          - generic [ref=e229]:
+            - slider "分镜数" [ref=e233]:
+              - generic:
+                - generic:
+                  - paragraph: "5"
+            - generic:
+              - generic:
+                - paragraph: "3"
+              - generic:
+                - paragraph: "30"
+          - paragraph [ref=e239]: 分镜数：5
+        - generic [ref=e241]:
+          - generic [ref=e243]:
+            - paragraph [ref=e248]:
+              - strong [ref=e249]: 🎵 背景音乐
+            - group [ref=e252]:
+              - generic "keyboard_arrow_right 💡 功能说明" [ref=e253] [cursor=pointer]:
+                - generic [ref=e254]:
+                  - generic [ref=e256]: keyboard_arrow_right
+                  - paragraph [ref=e259]: 💡 功能说明
+            - generic [ref=e263]:
+              - generic [ref=e264]:
+                - generic [ref=e265]: default.mp3
+                - combobox "Selected default.mp3. BGM" [ref=e267]
+              - img "open" [ref=e269]
+            - generic [ref=e273]:
+              - generic [ref=e274]:
+                - paragraph [ref=e277]: 音量
+                - button "Help for 音量" [ref=e281] [cursor=pointer]:
+                  - img [ref=e282]
+              - generic [ref=e285]:
+                - slider "音量" [ref=e289]:
+                  - generic:
+                    - generic:
+                      - paragraph: "0.20"
+                - generic:
+                  - generic:
+                    - paragraph: "0.00"
+                  - generic:
+                    - paragraph: "0.50"
+            - button "▶ 试听音乐" [ref=e293] [cursor=pointer]:
+              - paragraph [ref=e297]: ▶ 试听音乐
+          - generic [ref=e299]:
+            - paragraph [ref=e304]:
+              - strong [ref=e305]: 📦 版本信息
+            - paragraph [ref=e310]:
+              - text: "当前版本:"
+              - code [ref=e311]: 0.1.15
+              - link "GitHub stars" [ref=e312] [cursor=pointer]:
+                - /url: https://github.com/AIDC-AI/Pixelle-Video
+                - img "GitHub stars" [ref=e313]
