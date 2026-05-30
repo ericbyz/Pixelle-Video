@@ -1,16 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from api.dependencies import PixelleVideoDep
-from schemas.config import (
-    ConfigUpdateRequest,
+from api.schemas.config import (
     ConfigResponse,
-    TestLLMRequest,
-    TestLLMResponse,
+    ConfigUpdateRequest,
+    ImagePresetResponse,
     LLMPresetResponse,
     LLMModelsResponse,
+    TestLLMRequest,
+    TestLLMResponse,
     VersionResponse,
-    ImagePresetResponse,
     VideoPresetResponse,
 )
 
@@ -19,8 +18,11 @@ router = APIRouter(prefix="/config", tags=["Config"])
 _MASKED = "********"
 
 
+def _is_sensitive_key(key: str) -> bool:
+    return "api_key" in key or "password" in key or "secret" in key
+
+
 def _mask_config(config_dict: dict) -> dict:
-    """Mask sensitive fields in config for frontend display."""
     result = {}
     for key, value in config_dict.items():
         if isinstance(value, dict):
@@ -32,12 +34,7 @@ def _mask_config(config_dict: dict) -> dict:
     return result
 
 
-def _is_sensitive_key(key: str) -> bool:
-    return "api_key" in key or "password" in key or "secret" in key
-
-
 def _merge_updates(config_dict: dict, updates: dict) -> dict:
-    """Merge updates, keeping masked values unchanged."""
     result = dict(config_dict)
     for key, value in updates.items():
         if isinstance(value, dict) and isinstance(result.get(key), dict):
@@ -53,15 +50,11 @@ def _merge_updates(config_dict: dict, updates: dict) -> dict:
 async def get_config():
     from pixelle_video.config import config_manager
 
-    config_dict = config_manager.config.to_dict()
-    masked = _mask_config(config_dict)
-    return ConfigResponse(config=masked)
+    return ConfigResponse(config=_mask_config(config_manager.config.to_dict()))
 
 
 @router.put("", response_model=ConfigResponse)
-async def update_config(
-    request: ConfigUpdateRequest,
-):
+async def update_config(request: ConfigUpdateRequest):
     from pixelle_video.config import config_manager
 
     updates = request.model_dump(exclude_none=True)
@@ -78,15 +71,11 @@ async def update_config(
         logger.error(f"Failed to update config: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-    config_dict = config_manager.config.to_dict()
-    masked = _mask_config(config_dict)
-    return ConfigResponse(config=masked)
+    return ConfigResponse(config=_mask_config(config_manager.config.to_dict()))
 
 
 @router.post("/test-llm", response_model=TestLLMResponse)
-async def test_llm_connection(
-    request: TestLLMRequest,
-):
+async def test_llm_connection(request: TestLLMRequest):
     from pixelle_video.config import config_manager
 
     api_key = request.api_key
@@ -127,10 +116,7 @@ async def get_llm_presets():
 
 
 @router.get("/llm-models", response_model=LLMModelsResponse)
-async def get_llm_models(
-    api_key: str = None,
-    base_url: str = None,
-):
+async def get_llm_models(api_key: str = None, base_url: str = None):
     from pixelle_video.config import config_manager
 
     if not api_key or api_key == _MASKED:
@@ -146,10 +132,7 @@ async def get_llm_models(
 
         client = OpenAI(api_key=api_key, base_url=base_url)
         models_resp = client.models.list()
-        models = [
-            {"id": m.id, "name": m.id}
-            for m in models_resp.data
-        ]
+        models = [{"id": model.id, "name": model.id} for model in models_resp.data]
         return LLMModelsResponse(models=models)
     except Exception as e:
         logger.error(f"Failed to fetch models: {e}")

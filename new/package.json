@@ -1,0 +1,7 @@
+{
+  "name": "pixelle-video-new",
+  "private": true,
+  "scripts": {
+    "dev": "./start.sh"
+  }
+}

@@ -1,18 +1,16 @@
 import apiClient from './client'
+import type { UploadResponse } from '@/types'
 
-/** Upload file */
-export function uploadFile(file: File, path?: string) {
+/** Upload file (image/video/audio) */
+export function uploadFile(file: File) {
   const formData = new FormData()
   formData.append('file', file)
-  if (path) {
-    formData.append('path', path)
-  }
-  return apiClient.post('/files/upload', formData, {
+  return apiClient.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  }) as unknown as Promise<UploadResponse>
 }
 
-/** Get file URL */
+/** Get file URL for serving */
 export function getFileUrl(filePath: string): string {
   return `/api/files/${filePath}`
 }

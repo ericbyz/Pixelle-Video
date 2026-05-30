@@ -59,6 +59,7 @@ async def get_file(file_path: str):
             "data/bgm/",
             "data/templates/",
             "resources/",
+            "uploads/",
         ]
         
         # Check if path starts with allowed prefix, otherwise try output/
@@ -125,4 +126,3 @@ async def get_file(file_path: str):
     except Exception as e:
         logger.error(f"File access error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

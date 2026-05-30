@@ -1,13 +1,14 @@
-from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
+from fastapi import APIRouter, HTTPException, Query
+
 from api.dependencies import PixelleVideoDep
-from schemas.history import (
-    TaskListResponse,
-    TaskDetailResponse,
-    StatisticsResponse,
-    DuplicateResponse,
+from api.schemas.history import (
     DeleteResponse,
+    DuplicateResponse,
+    StatisticsResponse,
+    TaskDetailResponse,
+    TaskListResponse,
 )
 
 router = APIRouter(prefix="/history", tags=["History"])
@@ -33,10 +34,7 @@ async def get_task_list(
 
 
 @router.get("/tasks/{task_id}", response_model=TaskDetailResponse)
-async def get_task_detail(
-    task_id: str,
-    pixelle_video: PixelleVideoDep,
-):
+async def get_task_detail(task_id: str, pixelle_video: PixelleVideoDep):
     result = await pixelle_video.history.get_task_detail(task_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -44,18 +42,13 @@ async def get_task_detail(
 
 
 @router.get("/statistics", response_model=StatisticsResponse)
-async def get_statistics(
-    pixelle_video: PixelleVideoDep,
-):
+async def get_statistics(pixelle_video: PixelleVideoDep):
     result = await pixelle_video.history.get_statistics()
     return StatisticsResponse(success=True, **result)
 
 
 @router.delete("/tasks/{task_id}", response_model=DeleteResponse)
-async def delete_task(
-    task_id: str,
-    pixelle_video: PixelleVideoDep,
-):
+async def delete_task(task_id: str, pixelle_video: PixelleVideoDep):
     deleted = await pixelle_video.history.delete_task(task_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -63,10 +56,7 @@ async def delete_task(
 
 
 @router.post("/tasks/{task_id}/duplicate", response_model=DuplicateResponse)
-async def duplicate_task(
-    task_id: str,
-    pixelle_video: PixelleVideoDep,
-):
+async def duplicate_task(task_id: str, pixelle_video: PixelleVideoDep):
     result = await pixelle_video.history.duplicate_task(task_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Task not found")

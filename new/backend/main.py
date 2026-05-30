@@ -16,6 +16,10 @@ if str(_project_root) not in sys.path:
 if str(_backend_dir) not in sys.path:
     sys.path.insert(0, str(_backend_dir))
 
+# Change working directory to old/ so config_manager finds config.yaml
+import os
+os.chdir(str(_project_root))
+
 import argparse
 from contextlib import asynccontextmanager
 

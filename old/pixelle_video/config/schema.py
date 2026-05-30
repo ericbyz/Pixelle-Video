@@ -80,6 +80,22 @@ class ComfyUIConfig(BaseModel):
     video: VideoSubConfig = Field(default_factory=VideoSubConfig, description="Video-specific configuration")
 
 
+class ImageServiceConfig(BaseModel):
+    """Image generation service configuration"""
+    provider: str = Field(default="comfyui", description="Image service provider: 'comfyui', 'volcengine', 'doubao', 'qwen', 'zhipu'")
+    api_key: str = Field(default="", description="Image service API Key")
+    base_url: str = Field(default="", description="Image service API Base URL")
+    model: str = Field(default="", description="Image service model ID")
+
+
+class VideoServiceConfig(BaseModel):
+    """Video generation service configuration"""
+    provider: str = Field(default="comfyui", description="Video service provider: 'comfyui', 'volcengine', 'doubao', 'kling', 'zhipu'")
+    api_key: str = Field(default="", description="Video service API Key")
+    base_url: str = Field(default="", description="Video service API Base URL")
+    model: str = Field(default="", description="Video service model ID")
+
+
 class TemplateConfig(BaseModel):
     """Template configuration"""
     default_template: str = Field(
@@ -93,6 +109,8 @@ class PixelleVideoConfig(BaseModel):
     project_name: str = Field(default="Pixelle-Video", description="Project name")
     llm: LLMConfig = Field(default_factory=LLMConfig)
     comfyui: ComfyUIConfig = Field(default_factory=ComfyUIConfig)
+    image_service: ImageServiceConfig = Field(default_factory=ImageServiceConfig)
+    video_service: VideoServiceConfig = Field(default_factory=VideoServiceConfig)
     template: TemplateConfig = Field(default_factory=TemplateConfig)
     
     def is_llm_configured(self) -> bool:

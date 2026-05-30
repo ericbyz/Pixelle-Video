@@ -25,11 +25,13 @@ export type VideoMode = 'generate' | 'fixed'
 export interface VideoGenerateRequest {
   text: string
   mode: VideoMode
+  pipeline?: 'standard' | 'asset_based' | 'image_to_video' | 'action_transfer' | 'digital_human'
   title?: string
   n_scenes?: number
   tts_workflow?: string
   ref_audio?: string
   voice_id?: string
+  tts_speed?: number
   min_narration_words?: number
   max_narration_words?: number
   min_image_prompt_words?: number
@@ -41,6 +43,19 @@ export interface VideoGenerateRequest {
   prompt_prefix?: string
   bgm_path?: string
   bgm_volume?: number
+  assets?: string[]
+  video_title?: string
+  intent?: string
+  duration?: number
+  source?: string
+  character_assets?: string[]
+  goods_assets?: string[]
+  goods_title?: string
+  digital_mode?: 'digital' | 'customize'
+  image?: string
+  action_video?: string
+  action_image?: string
+  prompt_text?: string
 }
 
 export interface VideoGenerateResponse {
@@ -112,6 +127,15 @@ export interface BGMListResponse {
   bgm_files: BGMInfo[]
 }
 
+export interface UploadResponse {
+  success: boolean
+  message: string
+  path: string
+  filename: string
+  size: number
+  category: string
+}
+
 // ============================================================
 // Tasks
 // ============================================================
@@ -157,9 +181,25 @@ export interface ComfyUIConfig {
   runninghub_instance_type: string
 }
 
+export interface ImageServiceConfig {
+  provider: string
+  api_key: string
+  base_url: string
+  model: string
+}
+
+export interface VideoServiceConfig {
+  provider: string
+  api_key: string
+  base_url: string
+  model: string
+}
+
 export interface AppConfig {
   llm: LLMConfig
   comfyui: ComfyUIConfig
+  image_service: ImageServiceConfig
+  video_service: VideoServiceConfig
 }
 
 // ============================================================

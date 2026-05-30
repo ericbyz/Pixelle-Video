@@ -54,6 +54,10 @@ from api.routers import (
     files_router,
     resources_router,
     frame_router,
+    upload_router,
+    config_router,
+    history_router,
+    websocket_router,
 )
 
 
@@ -133,6 +137,10 @@ app.include_router(tasks_router, prefix=api_config.api_prefix)
 app.include_router(files_router, prefix=api_config.api_prefix)
 app.include_router(resources_router, prefix=api_config.api_prefix)
 app.include_router(frame_router, prefix=api_config.api_prefix)
+app.include_router(upload_router, prefix=api_config.api_prefix)
+app.include_router(config_router, prefix=api_config.api_prefix)
+app.include_router(history_router, prefix=api_config.api_prefix)
+app.include_router(websocket_router)
 
 
 @app.get("/")
@@ -188,4 +196,3 @@ Press Ctrl+C to stop the server
         port=args.port,
         reload=args.reload,
     )
-

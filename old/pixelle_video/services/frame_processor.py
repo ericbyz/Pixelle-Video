@@ -20,6 +20,7 @@ Key Feature:
   to ensure perfect sync between audio and video (no padding, no trimming needed)
 """
 
+import asyncio
 from typing import Callable, Optional
 
 import httpx
@@ -199,17 +200,29 @@ class FrameProcessor:
         frame: StoryboardFrame,
         config: StoryboardConfig
     ):
-        """Step 2: Generate media (image or video) using ComfyKit"""
+        """Step 2: Generate media (image or video) using cloud API or ComfyKit"""
         logger.debug(f"  2/4: Generating media for frame {frame.index}...")
-        
-        # Determine media type based on workflow
-        # video_ prefix in workflow name indicates video generation
-        workflow_name = config.media_workflow or ""
-        is_video_workflow = "video_" in workflow_name.lower()
-        media_type = "video" if is_video_workflow else "image"
-        
-        logger.debug(f"  → Media type: {media_type} (workflow: {workflow_name})")
-        
+
+        # Determine media type
+        # Cloud API mode: check video_service provider
+        # ComfyUI mode: check workflow name prefix
+        full_config = self.core.config
+        video_provider = full_config.get("video_service", {}).get("provider", "comfyui")
+        image_provider = full_config.get("image_service", {}).get("provider", "comfyui")
+
+        if video_provider != "comfyui":
+            media_type = "video"
+            logger.debug(f"  → Media type: {media_type} (cloud video provider: {video_provider})")
+        elif image_provider != "comfyui":
+            media_type = "image"
+            logger.debug(f"  → Media type: {media_type} (cloud image provider: {image_provider})")
+        else:
+            # ComfyUI mode: determine from workflow name
+            workflow_name = config.media_workflow or ""
+            is_video_workflow = "video_" in workflow_name.lower()
+            media_type = "video" if is_video_workflow else "image"
+            logger.debug(f"  → Media type: {media_type} (workflow: {workflow_name})")
+
         # Build media generation parameters
         media_params = {
             "prompt": frame.image_prompt,
@@ -219,13 +232,13 @@ class FrameProcessor:
             "height": config.media_height,
             "index": frame.index + 1,  # 1-based index for workflow
         }
-        
+
         # For video workflows: pass audio duration as target video duration
         # This ensures video length matches audio length from the source
-        if is_video_workflow and frame.duration:
+        if media_type == "video" and frame.duration:
             media_params["duration"] = frame.duration
             logger.info(f"  → Generating video with target duration: {frame.duration:.2f}s (from TTS audio)")
-        
+
         # Call Media generation
         media_result = await self.core.media(**media_params)
         
@@ -297,37 +310,53 @@ class FrameProcessor:
         """Compose frame using HTML template"""
         from pixelle_video.services.frame_html import HTMLFrameGenerator
         from pixelle_video.utils.template_util import resolve_template_path
-        
+
         # Resolve template path (handles various input formats)
         template_path = resolve_template_path(config.frame_template)
-        
+
         # Get content metadata from storyboard
         content_metadata = storyboard.content_metadata if storyboard else None
-        
+
         # Build ext data
         ext = {
             "index": frame.index + 1,
         }
-        
+
         # Add custom template parameters
         if config.template_params:
             ext.update(config.template_params)
-        
+
         # Generate frame using HTML (size is auto-parsed from template path)
         generator = HTMLFrameGenerator(template_path)
-        
+
         # Use video_path for video media, image_path for images
         media_path = frame.video_path if frame.media_type == "video" else frame.image_path
+
+        # For video media: extract a thumbnail frame for the HTML template
+        # since <img> can't display .mp4 files
+        thumbnail_path = None
+        if frame.media_type == "video" and media_path:
+            thumbnail_path = await self._extract_video_thumbnail(
+                media_path, config.task_id, frame.index
+            )
+            media_path = thumbnail_path
+
         logger.debug(f"Generating frame with media: '{media_path}' (type: {frame.media_type})")
-        
+
         composed_path = await generator.generate_frame(
             title=storyboard.title,
             text=frame.narration,
-            image=media_path,  # HTMLFrameGenerator handles both image and video paths
+            image=media_path,
             ext=ext,
             output_path=output_path
         )
-        
+
+        # Clean up thumbnail after composition
+        if thumbnail_path:
+            import os
+            if os.path.exists(thumbnail_path):
+                os.unlink(thumbnail_path)
+
         return composed_path
     
     async def _step_create_video_segment(
@@ -433,6 +462,40 @@ class FrameProcessor:
         
         return output_path
     
+    async def _extract_video_thumbnail(
+        self,
+        video_path: str,
+        task_id: str,
+        frame_index: int
+    ) -> str:
+        """Extract a thumbnail image from a video file using ffmpeg"""
+        from pixelle_video.utils.os_util import get_task_path
+
+        thumbnail_path = get_task_path(task_id, "frames", f"{frame_index + 1:02d}_thumbnail.png")
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-vf", "select=eq(n\\,0)",
+            "-vframes", "1",
+            "-q:v", "2",
+            thumbnail_path,
+        ]
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            logger.warning(f"ffmpeg thumbnail extraction failed: {stderr.decode()}")
+            return video_path
+
+        logger.debug(f"  ✓ Video thumbnail extracted: {thumbnail_path}")
+        return thumbnail_path
+
     async def _get_video_duration(self, video_path: str) -> float:
         """Get video duration in seconds"""
         try:

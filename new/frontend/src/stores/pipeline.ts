@@ -26,7 +26,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
   const isGenerating = ref(false)
   const currentTaskId = ref<string | null>(null)
 
-  const buildRequest = (): VideoGenerateRequest => {
+  const buildRequest = (overrides: Partial<VideoGenerateRequest> = {}): VideoGenerateRequest => {
     const req: VideoGenerateRequest = {
       text: text.value,
       mode: mode.value,
@@ -34,6 +34,7 @@ export const usePipelineStore = defineStore('pipeline', () => {
       n_scenes: nScenes.value,
       video_fps: videoFps.value,
       bgm_volume: bgmVolume.value,
+      pipeline: 'standard',
     }
 
     if (ttsWorkflow.value) req.tts_workflow = ttsWorkflow.value
@@ -45,7 +46,10 @@ export const usePipelineStore = defineStore('pipeline', () => {
     if (promptPrefix.value) req.prompt_prefix = promptPrefix.value
     if (bgmPath.value) req.bgm_path = bgmPath.value
 
-    return req
+    return {
+      ...req,
+      ...overrides,
+    }
   }
 
   const resetForm = () => {

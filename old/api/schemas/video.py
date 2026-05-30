@@ -14,12 +14,21 @@
 Video generation API schemas
 """
 
-from typing import Optional, Literal, Dict, Any
+from typing import Optional, Literal, Dict, Any, List
 from pydantic import BaseModel, Field
 
 
 class VideoGenerateRequest(BaseModel):
     """Video generation request"""
+
+    # === Pipeline ===
+    pipeline: Literal[
+        "standard",
+        "asset_based",
+        "image_to_video",
+        "action_transfer",
+        "digital_human",
+    ] = Field("standard", description="Video generation pipeline")
     
     # === Input ===
     text: str = Field(..., description="Source text for video generation")
@@ -49,6 +58,7 @@ class VideoGenerateRequest(BaseModel):
         None, 
         description="(Deprecated) TTS voice ID for legacy compatibility"
     )
+    tts_speed: Optional[float] = Field(None, ge=0.5, le=2.0, description="Local TTS speed")
     
     # === LLM Parameters ===
     min_narration_words: int = Field(5, ge=1, le=100, description="Min narration words")
@@ -82,6 +92,23 @@ class VideoGenerateRequest(BaseModel):
     # === BGM ===
     bgm_path: Optional[str] = Field(None, description="Background music path")
     bgm_volume: float = Field(0.3, ge=0.0, le=1.0, description="BGM volume (0.0-1.0)")
+
+    # === Asset-based pipeline ===
+    assets: Optional[List[str]] = Field(None, description="Uploaded asset paths for asset-based generation")
+    video_title: Optional[str] = Field(None, description="Asset-based video title")
+    intent: Optional[str] = Field(None, description="Asset-based video intent")
+    duration: Optional[int] = Field(30, ge=1, le=600, description="Target duration in seconds")
+    source: Optional[Literal["runninghub", "selfhost"]] = Field("runninghub", description="Workflow source")
+
+    # === Future pipeline payloads (accepted so the API can fail clearly instead of dropping fields) ===
+    character_assets: Optional[List[str]] = None
+    goods_assets: Optional[List[str]] = None
+    goods_title: Optional[str] = None
+    digital_mode: Optional[Literal["digital", "customize"]] = None
+    image: Optional[str] = None
+    action_video: Optional[str] = None
+    action_image: Optional[str] = None
+    prompt_text: Optional[str] = None
     
     class Config:
         json_schema_extra = {
@@ -113,4 +140,3 @@ class VideoGenerateAsyncResponse(BaseModel):
     success: bool = True
     message: str = "Task created successfully"
     task_id: str = Field(..., description="Task ID for tracking progress")
-

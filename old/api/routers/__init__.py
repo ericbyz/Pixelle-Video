@@ -24,6 +24,10 @@ from api.routers.tasks import router as tasks_router
 from api.routers.files import router as files_router
 from api.routers.resources import router as resources_router
 from api.routers.frame import router as frame_router
+from api.routers.upload import router as upload_router
+from api.routers.config import router as config_router
+from api.routers.history import router as history_router
+from api.routers.websocket import router as websocket_router
 
 __all__ = [
     "health_router",
@@ -36,5 +40,8 @@ __all__ = [
     "files_router",
     "resources_router",
     "frame_router",
+    "upload_router",
+    "config_router",
+    "history_router",
+    "websocket_router",
 ]
-

@@ -15,6 +15,7 @@ import {
   VideoCamera,
   Timer,
   Document,
+  Film,
 } from '@element-plus/icons-vue'
 import { useHistoryStore } from '@/stores/history'
 import type { Task, TaskStatus } from '@/types'

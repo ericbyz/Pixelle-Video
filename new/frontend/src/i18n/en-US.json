@@ -216,9 +216,11 @@
     "generation_time": "Generation Time"
   },
   "settings": {
-    "title": "⚙️ System Configuration (Required)",
+    "title": "Settings",
+    "subtitle": "Configure LLM, image and video generation services",
     "not_configured": "⚠️ Please complete system configuration before generating videos",
     "llm": {
+      "config": "Configuration",
       "title": "🤖 Large Language Model",
       "quick_select": "Quick Select",
       "quick_select_help": "Choose a preset LLM or custom configuration",
@@ -259,6 +261,18 @@
       "runninghub_instance_type_help": "Select RunningHub machine spec",
       "runninghub_instance_24g": "24G VRAM",
       "runninghub_instance_48g": "48G VRAM"
+    },
+    "image_service": {
+      "title": "Image Generation",
+      "select_provider": "Select Provider",
+      "config": "Service Configuration",
+      "comfyui_desc": "Local or cloud ComfyUI workflows"
+    },
+    "video_service": {
+      "title": "Video Generation",
+      "select_provider": "Select Provider",
+      "config": "Service Configuration",
+      "comfyui_desc": "Local or cloud ComfyUI workflows"
     }
   },
   "tts": {
@@ -549,6 +563,7 @@
   },
   "nav": {
     "home": "Home",
-    "history": "History"
+    "history": "History",
+    "settings": "Settings"
   }
 }

@@ -30,19 +30,67 @@ export const useHistoryStore = defineStore('history', () => {
     () => tasks.value.filter((t) => t.status === 'failed').length
   )
 
+  const filePathToUrl = (filePath?: string | null) => {
+    if (!filePath) return ''
+    if (/^https?:\/\//.test(filePath)) return filePath
+
+    const normalized = filePath.replace(/\\/g, '/')
+    const outputMarker = '/output/'
+    const markerIndex = normalized.indexOf(outputMarker)
+    if (markerIndex >= 0) {
+      return `/api/files/${normalized.slice(markerIndex + outputMarker.length)}`
+    }
+    if (normalized.startsWith('output/')) {
+      return `/api/files/${normalized.slice('output/'.length)}`
+    }
+    return `/api/files/${normalized}`
+  }
+
+  const normalizeTask = (raw: any): Task => {
+    const metadata = raw?.metadata || raw
+    const input = metadata?.input || metadata?.request_params || {}
+    const result = metadata?.result || {}
+    const videoUrl =
+      result.video_url ||
+      metadata.video_url ||
+      filePathToUrl(result.video_path || metadata.video_path)
+
+    return {
+      task_id: metadata.task_id,
+      task_type: 'video_generation',
+      status: metadata.status || 'completed',
+      progress: null,
+      result: {
+        ...result,
+        video_url: videoUrl,
+        duration: result.duration ?? metadata.duration,
+        file_size: result.file_size ?? metadata.file_size,
+      },
+      error: metadata.error || null,
+      created_at: metadata.created_at || '',
+      started_at: metadata.started_at || null,
+      completed_at: metadata.completed_at || null,
+      request_params: {
+        ...input,
+        text: input.text || metadata.title || '',
+        n_scenes: input.n_scenes || metadata.n_frames,
+      },
+    }
+  }
+
   const fetchTasks = async () => {
     isLoading.value = true
     try {
-      const { data } = await listTasks({ limit: 200 })
-      tasks.value = data
+      const data = await listTasks({ limit: 200 })
+      tasks.value = data.tasks.map(normalizeTask)
     } finally {
       isLoading.value = false
     }
   }
 
   const fetchTaskDetail = async (taskId: string) => {
-    const { data } = await getTask(taskId)
-    return data
+    const data = await getTask(taskId)
+    return normalizeTask(data)
   }
 
   const removeTask = async (taskId: string) => {
