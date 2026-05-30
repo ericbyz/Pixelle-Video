@@ -49,6 +49,7 @@ from routers import (
     config_router,
     ws_router,
     upload_router,
+    template_preview_router,
 )
 
 
@@ -101,6 +102,7 @@ app.include_router(history_router, prefix=api_config.api_prefix)
 app.include_router(config_router, prefix=api_config.api_prefix)
 app.include_router(ws_router)
 app.include_router(upload_router, prefix=api_config.api_prefix)
+app.include_router(template_preview_router, prefix=api_config.api_prefix)
 
 
 @app.get("/")

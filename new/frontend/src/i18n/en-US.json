@@ -138,6 +138,23 @@
     "landscape": "Landscape",
     "square": "Square"
   },
+  "source": {
+    "title": "Generation Channel",
+    "runninghub": "RunningHub Workflow",
+    "runninghub_desc": "Keep the legacy cloud workflow generation path",
+    "selfhost": "Local Workflow",
+    "selfhost_desc": "Use your own ComfyUI workflows and nodes",
+    "image_api": "Image API",
+    "image_api_desc": "Use the configured image API as a first-class generation provider",
+    "video_api": "Video API",
+    "video_api_desc": "Use the configured video API as a first-class provider like RunningHub",
+    "api_config_hint": "This channel uses the image/video service settings and does not need a workflow.",
+    "api_provider": "API Provider",
+    "api_provider_placeholder": "Select API provider",
+    "api_model_placeholder": "Enter model ID",
+    "api_key_hint": "Save API Key and Base URL in Settings. This selector chooses the provider and model for this generation.",
+    "no_workflows": "No matching workflows for this channel"
+  },
   "image": {
     "not_required": "Current template does not require image generation",
     "not_required_hint": "The selected template is text-only and does not need images. Benefits: ⚡ Faster generation 💰 Lower cost"

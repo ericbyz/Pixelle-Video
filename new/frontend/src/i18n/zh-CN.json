@@ -138,6 +138,23 @@
     "landscape": "横屏",
     "square": "方形"
   },
+  "source": {
+    "title": "生成通道",
+    "runninghub": "RunningHub 工作流",
+    "runninghub_desc": "保留 old 的云端工作流生成方式",
+    "selfhost": "本地工作流",
+    "selfhost_desc": "使用自己的 ComfyUI 工作流和节点",
+    "image_api": "图片 API",
+    "image_api_desc": "等同于图片生成厂家通道，用已配置的图片 API 出图",
+    "video_api": "视频 API",
+    "video_api_desc": "等同于 RunningHub 的视频生成厂家通道，用已配置的视频 API 出片",
+    "api_config_hint": "该通道使用设置页中的图片/视频服务配置，不需要选择工作流。",
+    "api_provider": "API 厂家",
+    "api_provider_placeholder": "选择 API 厂家",
+    "api_model_placeholder": "输入模型 ID",
+    "api_key_hint": "API Key、Base URL 等敏感配置请在设置页保存；这里用于选择本次生成使用的厂家和模型。",
+    "no_workflows": "当前通道下暂无匹配工作流"
+  },
   "image": {
     "not_required": "当前模板不需要插图生成",
     "not_required_hint": "您选择的模板是纯文本模板，无需生成图片。这将：⚡ 加快生成速度 💰 降低生成成本"

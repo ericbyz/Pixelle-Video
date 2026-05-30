@@ -26,6 +26,9 @@ export interface VideoGenerateRequest {
   text: string
   mode: VideoMode
   pipeline?: 'standard' | 'asset_based' | 'image_to_video' | 'action_transfer' | 'digital_human'
+  media_source?: 'runninghub' | 'selfhost' | 'image_api' | 'video_api'
+  media_provider?: string
+  media_model?: string
   title?: string
   n_scenes?: number
   tts_workflow?: string
