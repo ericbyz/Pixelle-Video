@@ -347,11 +347,14 @@
       "select": "Creation Flow"
     },
     "step": {
-      "content": "Script",
-      "assets": "Assets",
+      "content": "Content",
+      "assets": "Voice & Audio",
       "style": "Style",
       "settings": "Settings",
       "generate": "Generate",
+      "template": "Template",
+      "media": "Media Source",
+      "voice": "Voice & Audio",
       "video": "Motion",
       "target": "Target",
       "character": "Character",
@@ -581,6 +584,42 @@
   "nav": {
     "home": "Home",
     "history": "History",
-    "settings": "Settings"
+    "settings": "Settings",
+    "usage": "Usage"
+  },
+  "sidebar": {
+    "create": "Create",
+    "manage": "Manage",
+    "settings": "Settings",
+    "create_hint": "Pick a creation flow to start",
+    "history_desc": "View generated video history",
+    "usage_desc": "View API usage and costs",
+    "settings_desc": "Configure LLM, image and video services"
+  },
+  "usage": {
+    "title": "API Usage Statistics",
+    "subtitle": "View API call volume, token consumption and cost estimates",
+    "refresh": "Refresh",
+    "total_calls": "Total Calls",
+    "total_cost": "Est. Cost",
+    "total_tokens": "Total Tokens",
+    "input": "Input",
+    "output": "Output",
+    "trend": "Call Trend",
+    "calls": "Calls",
+    "cost": "Cost",
+    "model_breakdown": "Model Breakdown",
+    "model": "Model",
+    "service": "Service",
+    "action": "Action",
+    "input_tokens": "Input Tokens",
+    "output_tokens": "Output Tokens",
+    "time": "Time",
+    "status": "Status",
+    "records": "Call Records",
+    "filter_service": "Filter Service",
+    "filter_model": "Filter Model",
+    "days_unit": "days",
+    "load_failed": "Failed to load usage data"
   }
 }

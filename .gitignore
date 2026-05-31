@@ -33,3 +33,13 @@ output/
 
 # Data
 data/
+
+# Logs
+logs/
+*.log
+
+# Debug screenshots (root level only)
+/*.png
+
+# Playwright MCP
+.playwright-mcp/

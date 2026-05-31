@@ -575,32 +575,32 @@ onMounted(async () => {
 .settings-view {
   max-width: 960px;
   margin: 0 auto;
-  padding-bottom: var(--pv-space-10);
+  padding: 0 var(--pv-space-6) var(--pv-space-6);
 }
 
 /* Hero */
 .settings-hero {
   text-align: center;
-  margin-bottom: var(--pv-space-8);
-  padding: var(--pv-space-8) 0 var(--pv-space-4);
+  margin-bottom: var(--pv-space-4);
+  padding-top: var(--pv-space-5);
 }
 
 .settings-title {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--pv-text);
-  margin-bottom: var(--pv-space-2);
+  margin-bottom: var(--pv-space-1);
   letter-spacing: -0.5px;
 }
 
 .settings-subtitle {
-  font-size: 16px;
+  font-size: 13px;
   color: var(--pv-text-secondary);
 }
 
 /* Tabs */
 .settings-tabs :deep(.el-tabs__header) {
-  margin-bottom: var(--pv-space-6);
+  margin-bottom: var(--pv-space-4);
 }
 
 .settings-tabs :deep(.el-tabs__nav-wrap::after) {
@@ -615,11 +615,11 @@ onMounted(async () => {
 }
 
 .settings-tabs :deep(.el-tabs__item) {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   padding: 0 var(--pv-space-5);
-  height: 48px;
-  line-height: 48px;
+  height: 40px;
+  line-height: 40px;
 }
 
 .settings-tabs :deep(.el-tabs__item.is-active) {
@@ -634,33 +634,33 @@ onMounted(async () => {
 }
 
 .tab-content {
-  min-height: 400px;
+  min-height: auto;
 }
 
 /* Sections */
 .settings-section {
-  margin-bottom: var(--pv-space-8);
+  margin-bottom: var(--pv-space-5);
 }
 
 .section-title {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--pv-text);
-  margin-bottom: var(--pv-space-4);
-  padding-bottom: var(--pv-space-2);
+  margin-bottom: var(--pv-space-3);
+  padding-bottom: var(--pv-space-1);
   border-bottom: 1px solid var(--pv-border-light);
 }
 
 /* Preset Grid */
 .preset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: var(--pv-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--pv-space-2);
 }
 
 .preset-card {
   position: relative;
-  padding: var(--pv-space-4);
+  padding: var(--pv-space-3);
   background: var(--pv-surface);
   border: 2px solid var(--pv-border-light);
   border-radius: var(--pv-radius-lg);
@@ -707,13 +707,13 @@ onMounted(async () => {
 /* Provider Grid */
 .provider-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--pv-space-4);
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--pv-space-3);
 }
 
 .provider-card {
   position: relative;
-  padding: var(--pv-space-5);
+  padding: var(--pv-space-3);
   background: var(--pv-surface);
   border: 2px solid var(--pv-border-light);
   border-radius: var(--pv-radius-xl);
@@ -734,15 +734,15 @@ onMounted(async () => {
 }
 
 .provider-icon {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--pv-radius-lg);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  margin-bottom: var(--pv-space-3);
+  margin-bottom: var(--pv-space-2);
   color: white;
 }
 
@@ -771,16 +771,16 @@ onMounted(async () => {
 }
 
 .provider-name {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--pv-text);
-  margin-bottom: var(--pv-space-1);
+  margin-bottom: 2px;
 }
 
 .provider-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--pv-text-muted);
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .provider-check {
@@ -796,11 +796,11 @@ onMounted(async () => {
   background: var(--pv-surface);
   border: 1px solid var(--pv-border-light);
   border-radius: var(--pv-radius-lg);
-  padding: var(--pv-space-6);
+  padding: var(--pv-space-4);
 }
 
 .form-group {
-  margin-bottom: var(--pv-space-5);
+  margin-bottom: var(--pv-space-3);
 }
 
 .form-group:last-child {
@@ -809,10 +809,10 @@ onMounted(async () => {
 
 .form-label {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--pv-text-secondary);
-  margin-bottom: var(--pv-space-2);
+  margin-bottom: var(--pv-space-1);
 }
 
 .required {
@@ -832,38 +832,38 @@ onMounted(async () => {
 .form-actions {
   display: flex;
   gap: var(--pv-space-3);
-  margin-top: var(--pv-space-5);
-  padding-top: var(--pv-space-5);
+  margin-top: var(--pv-space-3);
+  padding-top: var(--pv-space-3);
   border-top: 1px solid var(--pv-border-light);
 }
 
 .api-key-link {
-  margin-bottom: var(--pv-space-4);
+  margin-bottom: var(--pv-space-3);
 }
 
 .api-key-link .el-link {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .runninghub-link {
-  margin-bottom: var(--pv-space-4);
+  margin-bottom: var(--pv-space-3);
 }
 
 .runninghub-link .el-link {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .comfyui-hint {
   display: flex;
   align-items: flex-start;
-  gap: var(--pv-space-3);
-  padding: var(--pv-space-5);
+  gap: var(--pv-space-2);
+  padding: var(--pv-space-3);
   background: var(--pv-surface);
   border: 1px solid var(--pv-border-light);
   border-radius: var(--pv-radius-lg);
   color: var(--pv-text-secondary);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .comfyui-hint .el-icon {
@@ -884,15 +884,15 @@ onMounted(async () => {
 .settings-footer {
   display: flex;
   gap: var(--pv-space-3);
-  padding: var(--pv-space-6) 0;
+  padding: var(--pv-space-4) 0 0;
   border-top: 1px solid var(--pv-border-light);
-  margin-top: var(--pv-space-4);
+  margin-top: var(--pv-space-2);
 }
 
 .save-btn {
   flex: 1;
-  height: 48px;
-  font-size: 15px;
+  height: 40px;
+  font-size: 14px;
   font-weight: 600;
   border-radius: var(--pv-radius-lg);
   background: linear-gradient(135deg, var(--pv-primary), #7c3aed);
@@ -910,8 +910,8 @@ onMounted(async () => {
 }
 
 .reset-btn {
-  height: 48px;
-  font-size: 15px;
+  height: 40px;
+  font-size: 14px;
   border-radius: var(--pv-radius-lg);
 }
 </style>

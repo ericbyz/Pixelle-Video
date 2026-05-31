@@ -348,10 +348,13 @@
     },
     "step": {
       "content": "文案",
-      "assets": "素材",
+      "assets": "语音音频",
       "style": "风格",
       "settings": "参数",
       "generate": "生成",
+      "template": "模板",
+      "media": "素材来源",
+      "voice": "语音音频",
       "video": "动作",
       "target": "目标",
       "character": "人物",
@@ -581,6 +584,42 @@
   "nav": {
     "home": "首页",
     "history": "历史记录",
-    "settings": "设置"
+    "settings": "设置",
+    "usage": "用量统计"
+  },
+  "sidebar": {
+    "create": "创作",
+    "manage": "管理",
+    "settings": "设置",
+    "create_hint": "选择一个创作流程开始",
+    "history_desc": "查看已生成的视频记录",
+    "usage_desc": "查看 API 调用量与费用",
+    "settings_desc": "配置 LLM、图片和视频服务"
+  },
+  "usage": {
+    "title": "API 用量统计",
+    "subtitle": "查看 API 调用量、Token 消耗与费用估算",
+    "refresh": "刷新",
+    "total_calls": "总调用次数",
+    "total_cost": "预估费用",
+    "total_tokens": "Token 总量",
+    "input": "输入",
+    "output": "输出",
+    "trend": "调用趋势",
+    "calls": "调用次数",
+    "cost": "费用",
+    "model_breakdown": "模型使用明细",
+    "model": "模型",
+    "service": "服务",
+    "action": "操作",
+    "input_tokens": "输入 Tokens",
+    "output_tokens": "输出 Tokens",
+    "time": "时间",
+    "status": "状态",
+    "records": "调用记录",
+    "filter_service": "筛选服务",
+    "filter_model": "筛选模型",
+    "days_unit": "天",
+    "load_failed": "加载用量数据失败"
   }
 }

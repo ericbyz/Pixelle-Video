@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Task, TaskStatus } from '@/types'
-import { listTasks, getTask, cancelTask } from '@/api/history'
+import { listTasks, listActiveTasks, getTask, cancelTask } from '@/api/history'
 
 export const useHistoryStore = defineStore('history', () => {
   const tasks = ref<Task[]>([])
@@ -59,7 +59,7 @@ export const useHistoryStore = defineStore('history', () => {
       task_id: metadata.task_id,
       task_type: 'video_generation',
       status: metadata.status || 'completed',
-      progress: null,
+      progress: metadata.progress || null,
       result: {
         ...result,
         video_url: videoUrl,
@@ -81,16 +81,42 @@ export const useHistoryStore = defineStore('history', () => {
   const fetchTasks = async () => {
     isLoading.value = true
     try {
-      const data = await listTasks({ limit: 200 })
-      tasks.value = data.tasks.map(normalizeTask)
+      const [historyData, activeData] = await Promise.all([
+        listTasks({ limit: 200 }),
+        listActiveTasks({ limit: 200 }).catch(() => []),
+      ])
+
+      const historyTasks = historyData.tasks.map(normalizeTask)
+      const activeTasks = (Array.isArray(activeData) ? activeData : []).map(normalizeTask)
+
+      const activeIds = new Set(activeTasks.map((t: Task) => t.task_id))
+      const merged = [
+        ...activeTasks,
+        ...historyTasks.filter((t: Task) => !activeIds.has(t.task_id)),
+      ]
+
+      merged.sort((a: Task, b: Task) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0
+        return tb - ta
+      })
+
+      tasks.value = merged
     } finally {
       isLoading.value = false
     }
   }
 
   const fetchTaskDetail = async (taskId: string) => {
-    const data = await getTask(taskId)
-    return normalizeTask(data)
+    try {
+      const data = await getTask(taskId)
+      return normalizeTask(data)
+    } catch {
+      // Fall back to in-memory task API for active tasks
+      const { default: apiClient } = await import('@/api/client')
+      const resp = await apiClient.get(`/tasks/${taskId}`)
+      return normalizeTask(resp.data || resp)
+    }
   }
 
   const removeTask = async (taskId: string) => {

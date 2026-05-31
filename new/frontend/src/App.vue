@@ -1,22 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
-  HomeFilled,
   Clock,
   Setting,
   VideoCamera,
-  ChatRound,
-  Search,
   FolderOpened,
-  Collection,
-  UserFilled,
-  Plus,
   Star,
   Monitor,
   Film,
   Position,
+  TrendCharts,
+  DataAnalysis,
 } from '@element-plus/icons-vue'
 import { usePipelineStore } from '@/stores/pipeline'
 import type { PipelineType } from '@/types'
@@ -29,8 +25,23 @@ const activeMenu = computed(() => {
   const path = router.currentRoute.value.path
   if (path === '/history') return '/history'
   if (path === '/settings') return '/settings'
+  if (path === '/usage') return '/usage'
   return '/home'
 })
+
+// Auto-switch tab based on route
+const activeTab = ref('create')
+watch(activeMenu, (val) => {
+  if (val === '/home') activeTab.value = 'create'
+  else if (val === '/history' || val === '/usage') activeTab.value = 'manage'
+  else if (val === '/settings') activeTab.value = 'settings'
+}, { immediate: true })
+
+const tabs = computed(() => [
+  { key: 'create', label: t('sidebar.create') },
+  { key: 'manage', label: t('sidebar.manage') },
+  { key: 'settings', label: t('sidebar.settings') },
+])
 
 const currentLanguage = computed({
   get: () => locale.value,
@@ -65,40 +76,87 @@ const selectPipeline = (key: PipelineType) => {
   pipelineStore.currentPipeline = key
   router.push('/home')
 }
+
+function onTabClick(key: string) {
+  activeTab.value = key
+  if (key === 'create') router.push('/home')
+  else if (key === 'manage') {
+    if (activeMenu.value !== '/history' && activeMenu.value !== '/usage') router.push('/history')
+  }
+  else if (key === 'settings') router.push('/settings')
+}
 </script>
 
 <template>
   <div class="app-shell">
-    <aside class="icon-rail">
-      <button class="brand-dot" @click="router.push('/home')" aria-label="Pixelle Video">
-        <el-icon><VideoCamera /></el-icon>
-      </button>
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand" @click="router.push('/home')">
+        <span class="brand-icon"><el-icon :size="18"><VideoCamera /></el-icon></span>
+        <span class="brand-text">Pixelle Video</span>
+      </div>
 
-      <nav class="rail-nav">
-        <button class="rail-btn active" @click="router.push('/home')" :title="t('nav.home')">
-          <el-icon><ChatRound /></el-icon>
-        </button>
-        <button class="rail-btn" :title="t('nav.history')" @click="router.push('/history')">
-          <el-icon><Clock /></el-icon>
-        </button>
-        <button class="rail-btn" :title="t('nav.settings')" @click="router.push('/settings')">
-          <el-icon><Setting /></el-icon>
-        </button>
-        <button class="rail-btn" title="Search">
-          <el-icon><Search /></el-icon>
-        </button>
-        <button class="rail-btn" title="Assets">
-          <el-icon><Collection /></el-icon>
-        </button>
-      </nav>
+      <!-- Tabs -->
+      <div class="sidebar-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="tab-btn"
+          :class="{ active: activeTab === tab.key }"
+          @click="onTabClick(tab.key)"
+        >{{ tab.label }}</button>
+      </div>
 
-      <div class="rail-footer">
-        <el-select
-          v-model="currentLanguage"
-          size="small"
-          class="rail-lang"
-          placement="right"
+      <!-- Tab: 创作 -->
+      <div v-show="activeTab === 'create'" class="tab-panel">
+        <div class="panel-hint">{{ t('sidebar.create_hint') }}</div>
+        <button
+          v-for="pipeline in pipelines"
+          :key="pipeline.key"
+          class="nav-item"
+          :class="{ active: activeMenu === '/home' && pipelineStore.currentPipeline === pipeline.key }"
+          @click="selectPipeline(pipeline.key)"
         >
+          <span class="nav-icon"><el-icon><component :is="pipelineIcons[pipeline.key]" /></el-icon></span>
+          <span class="nav-body">
+            <span class="nav-text">{{ pipeline.name }}</span>
+            <span class="nav-desc">{{ pipeline.desc }}</span>
+          </span>
+        </button>
+      </div>
+
+      <!-- Tab: 管理 -->
+      <div v-show="activeTab === 'manage'" class="tab-panel">
+        <button class="nav-item" :class="{ active: activeMenu === '/history' }" @click="router.push('/history')">
+          <span class="nav-icon"><el-icon><Clock /></el-icon></span>
+          <span class="nav-body">
+            <span class="nav-text">{{ t('nav.history') }}</span>
+            <span class="nav-desc">{{ t('sidebar.history_desc') }}</span>
+          </span>
+        </button>
+        <button class="nav-item" :class="{ active: activeMenu === '/usage' }" @click="router.push('/usage')">
+          <span class="nav-icon"><el-icon><TrendCharts /></el-icon></span>
+          <span class="nav-body">
+            <span class="nav-text">{{ t('nav.usage') }}</span>
+            <span class="nav-desc">{{ t('sidebar.usage_desc') }}</span>
+          </span>
+        </button>
+      </div>
+
+      <!-- Tab: 设置 -->
+      <div v-show="activeTab === 'settings'" class="tab-panel">
+        <button class="nav-item" :class="{ active: activeMenu === '/settings' }" @click="router.push('/settings')">
+          <span class="nav-icon"><el-icon><Setting /></el-icon></span>
+          <span class="nav-body">
+            <span class="nav-text">{{ t('nav.settings') }}</span>
+            <span class="nav-desc">{{ t('sidebar.settings_desc') }}</span>
+          </span>
+        </button>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <el-select v-model="currentLanguage" size="small" class="lang-select">
           <el-option
             v-for="lang in languageOptions"
             :key="lang.value"
@@ -106,51 +164,6 @@ const selectPipeline = (key: PipelineType) => {
             :value="lang.value"
           />
         </el-select>
-        <button class="profile-dot" title="Profile">
-          <el-icon><UserFilled /></el-icon>
-        </button>
-      </div>
-    </aside>
-
-    <aside class="flow-sidebar">
-      <div class="sidebar-top">
-        <button class="sidebar-title" @click="router.push('/home')">
-          <span>视频创作</span>
-          <span class="sidebar-caret">⌄</span>
-        </button>
-        <button class="new-btn" @click="router.push('/home')" title="New">
-          <el-icon><Plus /></el-icon>
-        </button>
-      </div>
-
-      <div class="flow-list">
-        <button
-          v-for="pipeline in pipelines"
-          :key="pipeline.key"
-          class="flow-item"
-          :class="{ active: activeMenu === '/home' && pipelineStore.currentPipeline === pipeline.key }"
-          @click="selectPipeline(pipeline.key)"
-        >
-          <span class="flow-avatar">
-            <el-icon><component :is="pipelineIcons[pipeline.key]" /></el-icon>
-          </span>
-          <span class="flow-copy">
-            <strong>{{ pipeline.name }}</strong>
-            <span>{{ pipeline.desc }}</span>
-          </span>
-          <span class="flow-time">刚刚</span>
-        </button>
-      </div>
-
-      <div class="sidebar-links">
-        <button class="side-link" :class="{ active: activeMenu === '/history' }" @click="router.push('/history')">
-          <el-icon><Clock /></el-icon>
-          <span>{{ t('nav.history') }}</span>
-        </button>
-        <button class="side-link" :class="{ active: activeMenu === '/settings' }" @click="router.push('/settings')">
-          <el-icon><Setting /></el-icon>
-          <span>{{ t('nav.settings') || '设置' }}</span>
-        </button>
       </div>
     </aside>
 
@@ -169,240 +182,180 @@ const selectPipeline = (key: PipelineType) => {
 <style scoped>
 .app-shell {
   display: grid;
-  grid-template-columns: 64px 312px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   height: 100vh;
   background: #f7f7f5;
   color: var(--pv-text);
 }
 
-.icon-rail {
+/* ---- Sidebar ---- */
+.sidebar {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 0;
-  background: #fbfbfa;
-  border-right: 1px solid #eeeeeb;
-}
-
-.brand-dot,
-.profile-dot,
-.rail-btn,
-.new-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  cursor: pointer;
-  transition: all var(--pv-transition);
-}
-
-.brand-dot {
-  width: 34px;
-  height: 34px;
-  color: #ffffff;
-  background: linear-gradient(145deg, #2f6df6, #ff5aac);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgb(47 109 246 / 0.24);
-}
-
-.rail-nav {
-  display: grid;
-  gap: 14px;
-  margin-top: 22px;
-}
-
-.rail-btn {
-  width: 38px;
-  height: 38px;
-  color: #9b9895;
-  background: transparent;
-  border-radius: 14px;
-}
-
-.rail-btn:hover,
-.rail-btn.active {
-  color: #111111;
-  background: #eeeeeb;
-}
-
-.rail-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.rail-lang {
-  width: 44px;
-}
-
-.rail-lang :deep(.el-input__wrapper) {
-  min-height: 30px;
-  padding: 0 4px;
-  border-radius: 14px;
-  background: #ffffff;
-}
-
-.rail-lang :deep(.el-input__inner) {
-  font-size: 0;
-}
-
-.profile-dot {
-  width: 36px;
-  height: 36px;
-  color: #ffffff;
-  background: #3b82f6;
-  border-radius: 50%;
-}
-
-.flow-sidebar {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 16px 12px;
   background: #ffffff;
   border-right: 1px solid #ececea;
+  overflow: hidden;
 }
 
-.sidebar-top {
+.sidebar-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 4px 14px;
-}
-
-.sidebar-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  background: transparent;
-  color: #161514;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.sidebar-caret {
-  color: #7b7875;
-  font-size: 18px;
-}
-
-.new-btn {
-  width: 28px;
-  height: 28px;
-  color: #111111;
-  background: transparent;
-  border: 1px solid #dedbd7;
-  border-radius: 50%;
-}
-
-.new-btn:hover {
-  background: #f3f2ef;
-}
-
-.flow-list {
-  display: grid;
-  gap: 8px;
-  overflow-y: auto;
-  padding-right: 2px;
-}
-
-.flow-item {
-  position: relative;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
   gap: 10px;
-  width: 100%;
-  min-height: 68px;
-  padding: 8px 10px;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: 16px;
+  padding: 18px 18px 14px;
   cursor: pointer;
-  transition: all var(--pv-transition);
+  user-select: none;
 }
 
-.flow-item:hover,
-.flow-item.active {
-  background: #f4f4f2;
-}
-
-.flow-avatar {
-  width: 44px;
-  height: 44px;
+.brand-icon {
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  color: #1f2937;
-  background: #e9f1ec;
-  border-radius: 50%;
-  font-size: 18px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #2f6df6, #ff5aac);
+  border-radius: 9px;
+  box-shadow: 0 4px 14px rgb(47 109 246 / 0.2);
+  flex-shrink: 0;
 }
 
-.flow-item:nth-child(2) .flow-avatar { background: #e7efe6; }
-.flow-item:nth-child(3) .flow-avatar { background: #edf0f6; }
-.flow-item:nth-child(4) .flow-avatar { background: #f2ede5; }
-.flow-item:nth-child(5) .flow-avatar { background: #e9edf7; }
-
-.flow-copy {
-  display: grid;
-  align-content: center;
-  min-width: 0;
+.brand-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 
-.flow-copy strong {
-  color: #1a1918;
-  font-size: 14px;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.flow-copy span {
-  color: #8d8985;
-  font-size: 12px;
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.flow-time {
-  color: #b0aca7;
-  font-size: 12px;
-  padding-top: 6px;
-}
-
-.sidebar-links {
-  display: grid;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: 18px;
-}
-
-.side-link {
+/* ---- Tabs ---- */
+.sidebar-tabs {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 38px;
-  padding: 0 10px;
-  color: #6f6a66;
-  background: transparent;
-  border: 0;
-  border-radius: 12px;
-  font-size: 13px;
-  cursor: pointer;
+  gap: 2px;
+  padding: 0 14px;
+  margin-bottom: 4px;
 }
 
-.side-link:hover,
-.side-link.active {
-  color: #161514;
+.tab-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tab-btn:hover {
+  color: #6b7280;
   background: #f4f4f2;
 }
 
+.tab-btn.active {
+  color: #4f46e5;
+  background: #eef2ff;
+}
+
+/* ---- Tab Panel ---- */
+.tab-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px;
+}
+
+.panel-hint {
+  font-size: 11px;
+  color: #b0aca7;
+  padding: 2px 8px 10px;
+}
+
+/* ---- Nav Items ---- */
+.nav-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: #f4f4f2;
+  color: #111827;
+}
+
+.nav-item.active {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.nav-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 16px;
+  flex-shrink: 0;
+  background: #f3f4f6;
+}
+
+.nav-item.active .nav-icon {
+  background: #e0e7ff;
+}
+
+.nav-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.nav-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-desc {
+  font-size: 11.5px;
+  color: #9ca3af;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nav-item.active .nav-desc {
+  color: #818cf8;
+}
+
+/* ---- Footer ---- */
+.sidebar-footer {
+  padding: 10px 14px 16px;
+  border-top: 1px solid #f3f3f0;
+}
+
+.lang-select {
+  width: 100%;
+}
+
+.lang-select :deep(.el-input__wrapper) {
+  border-radius: 8px;
+}
+
+/* ---- Main ---- */
 .app-main {
   min-width: 0;
   padding: 12px;
@@ -412,29 +365,20 @@ const selectPipeline = (key: PipelineType) => {
 
 .main-surface {
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
   background: #ffffff;
   border: 1px solid #ececea;
   border-radius: 28px;
   box-shadow: 0 18px 50px rgb(20 20 20 / 0.05);
 }
 
-@media (max-width: 980px) {
-  .app-shell {
-    grid-template-columns: 56px minmax(0, 1fr);
-  }
-
-  .flow-sidebar {
-    display: none;
-  }
-}
-
+/* ---- Responsive ---- */
 @media (max-width: 720px) {
   .app-shell {
     grid-template-columns: 1fr;
   }
 
-  .icon-rail {
+  .sidebar {
     display: none;
   }
 
@@ -447,7 +391,6 @@ const selectPipeline = (key: PipelineType) => {
   }
 }
 
-/* Page Transitions */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;

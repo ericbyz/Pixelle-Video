@@ -109,6 +109,9 @@ class VideoGenerateRequest(BaseModel):
     action_video: Optional[str] = None
     action_image: Optional[str] = None
     prompt_text: Optional[str] = None
+    media_source: Optional[str] = None
+    media_provider: Optional[str] = None
+    media_model: Optional[str] = None
     
     class Config:
         json_schema_extra = {

@@ -16,7 +16,7 @@ export interface HistoryTaskDetailResponse {
   storyboard?: any
 }
 
-/** List tasks */
+/** List persisted (completed) tasks */
 export function listTasks(params?: { status?: string; limit?: number }) {
   return apiClient.get('/history/tasks', {
     params: {
@@ -25,6 +25,16 @@ export function listTasks(params?: { status?: string; limit?: number }) {
       page_size: params?.limit || 200,
     },
   }) as unknown as Promise<HistoryTaskListResponse>
+}
+
+/** List active (in-memory) tasks from TaskManager */
+export function listActiveTasks(params?: { status?: string; limit?: number }) {
+  return apiClient.get('/tasks', {
+    params: {
+      status: params?.status || undefined,
+      limit: params?.limit || 200,
+    },
+  }) as unknown as Promise<any[]>
 }
 
 /** Get task detail */

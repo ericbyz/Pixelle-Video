@@ -98,30 +98,10 @@ const ensureDefaultTemplate = () => {
 }
 
 const sourceOptions: Array<{ value: MediaSource; titleKey: string; descKey: string; badge: string }> = [
-  {
-    value: 'runninghub',
-    titleKey: 'source.runninghub',
-    descKey: 'source.runninghub_desc',
-    badge: 'Cloud',
-  },
-  {
-    value: 'selfhost',
-    titleKey: 'source.selfhost',
-    descKey: 'source.selfhost_desc',
-    badge: 'Local',
-  },
-  {
-    value: 'image_api',
-    titleKey: 'source.image_api',
-    descKey: 'source.image_api_desc',
-    badge: 'Image API',
-  },
-  {
-    value: 'video_api',
-    titleKey: 'source.video_api',
-    descKey: 'source.video_api_desc',
-    badge: 'Video API',
-  },
+  { value: 'runninghub', titleKey: 'source.runninghub', descKey: 'source.runninghub_desc', badge: 'Cloud' },
+  { value: 'selfhost', titleKey: 'source.selfhost', descKey: 'source.selfhost_desc', badge: 'Local' },
+  { value: 'image_api', titleKey: 'source.image_api', descKey: 'source.image_api_desc', badge: 'Image API' },
+  { value: 'video_api', titleKey: 'source.video_api', descKey: 'source.video_api_desc', badge: 'Video API' },
 ]
 
 const loadApiConfig = async () => {
@@ -162,7 +142,6 @@ const handleTemplateImageError = (event: Event) => {
 
 const workflowMatchesPipeline = (wf: WorkflowInfo) => {
   const name = wf.name.toLowerCase()
-
   if (store.currentPipeline === 'image_to_video') return name.startsWith('i2v_')
   if (store.currentPipeline === 'action_transfer') return name.startsWith('af_')
   if (store.currentPipeline === 'quick_create') {
@@ -170,7 +149,6 @@ const workflowMatchesPipeline = (wf: WorkflowInfo) => {
     if (templateKind.value === 'image') return name.startsWith('image_')
     return false
   }
-
   return true
 }
 
@@ -218,6 +196,16 @@ watch(mediaSource, () => {
   }
 })
 
+const isVideoApiPipeline = computed(() =>
+  store.currentPipeline === 'custom_media' || store.currentPipeline === 'image_to_video'
+)
+
+watch(() => store.currentPipeline, (pipeline) => {
+  if (pipeline === 'custom_media' || pipeline === 'image_to_video') {
+    mediaSource.value = 'video_api'
+  }
+}, { immediate: true })
+
 watch(templateKind, () => {
   store.mediaWorkflow = null
   if (!visibleTemplates.value.some((tmpl) => tmpl.key === store.frameTemplate)) {
@@ -256,7 +244,6 @@ const ttsVoice = ref('zh-CN-YunjianNeural')
 const ttsSpeed = ref(1.2)
 const refAudioFile = ref<{ name: string; path: string; url: string } | null>(null)
 
-// Voice options
 const voiceOptions = [
   { id: 'zh-CN-YunjianNeural', label: 'voice.male_professional' },
   { id: 'zh-CN-YunxiNeural', label: 'voice.male_young' },
@@ -347,6 +334,47 @@ const removeFile = (target: string, index?: number) => {
 }
 
 // ============================================================
+// Step Management
+// ============================================================
+const visibleSteps = computed(() => {
+  const steps = [{ key: 'content', titleKey: 'progressive.step.content' }]
+  if (store.currentPipeline === 'quick_create') {
+    steps.push({ key: 'template', titleKey: 'progressive.step.template' })
+  }
+  steps.push({ key: 'media', titleKey: 'progressive.step.media' })
+  steps.push({ key: 'voice', titleKey: 'progressive.step.voice' })
+  if (store.currentPipeline === 'quick_create' || store.currentPipeline === 'custom_media') {
+    steps.push({ key: 'style', titleKey: 'progressive.step.style' })
+  }
+  return steps
+})
+
+const isStepComplete = (key: string): boolean => {
+  switch (key) {
+    case 'content':
+      if (store.currentPipeline === 'quick_create') return store.text.trim().length > 0
+      if (store.currentPipeline === 'custom_media') return assetFiles.value.length > 0
+      if (store.currentPipeline === 'digital_human') return characterFiles.value.length > 0
+      if (store.currentPipeline === 'image_to_video') return !!i2vImageFile.value
+      if (store.currentPipeline === 'action_transfer') return !!atVideoFile.value && !!atImageFile.value
+      return false
+    case 'template':
+      return !!store.frameTemplate
+    default:
+      return true
+  }
+}
+
+const completedCount = computed(() =>
+  visibleSteps.value.filter((s) => isStepComplete(s.key)).length
+)
+
+const setupProgress = computed(() => {
+  const total = visibleSteps.value.length
+  return total > 0 ? Math.round((completedCount.value / total) * 100) : 0
+})
+
+// ============================================================
 // Video generation
 // ============================================================
 const isGenerating = computed(() => store.isGenerating)
@@ -368,46 +396,24 @@ const buildPipelineOverrides = (): Partial<VideoGenerateRequest> => {
 
   const ttsOverrides: Partial<VideoGenerateRequest> =
     ttsMode.value === 'local'
-      ? {
-          voice_id: ttsVoice.value,
-          tts_speed: ttsSpeed.value,
-          tts_workflow: undefined,
-          ref_audio: undefined,
-        }
-      : {
-          voice_id: undefined,
-          tts_speed: undefined,
-          tts_workflow: store.ttsWorkflow || undefined,
-          ref_audio: refAudioFile.value?.path,
-        }
+      ? { voice_id: ttsVoice.value, tts_speed: ttsSpeed.value, tts_workflow: undefined, ref_audio: undefined }
+      : { voice_id: undefined, tts_speed: undefined, tts_workflow: store.ttsWorkflow || undefined, ref_audio: refAudioFile.value?.path }
 
   if (store.currentPipeline === 'custom_media') {
     const fallbackText =
-      intent.value.trim() ||
-      store.title.trim() ||
-      assetFiles.value.map((file) => file.name).join(', ')
-
+      intent.value.trim() || store.title.trim() || assetFiles.value.map((file) => file.name).join(', ')
     return {
-      ...ttsOverrides,
-      ...mediaOverrides,
-      pipeline: 'asset_based',
-      text: fallbackText,
-      title: store.title || undefined,
-      video_title: store.title || undefined,
-      intent: intent.value || undefined,
-      duration: duration.value,
-      source: inferWorkflowSource(),
+      ...ttsOverrides, ...mediaOverrides, pipeline: 'asset_based',
+      text: fallbackText, title: store.title || undefined, video_title: store.title || undefined,
+      intent: intent.value || undefined, duration: duration.value, source: inferWorkflowSource(),
       assets: assetFiles.value.map((file) => file.path),
     }
   }
 
   if (store.currentPipeline === 'digital_human') {
     return {
-      ...ttsOverrides,
-      ...mediaOverrides,
-      pipeline: 'digital_human',
-      source: inferWorkflowSource(),
-      digital_mode: digitalMode.value,
+      ...ttsOverrides, ...mediaOverrides, pipeline: 'digital_human',
+      source: inferWorkflowSource(), digital_mode: digitalMode.value,
       character_assets: characterFiles.value.map((file) => file.path),
       goods_assets: productFiles.value.map((file) => file.path),
       goods_title: goodsTitle.value || undefined,
@@ -416,74 +422,39 @@ const buildPipelineOverrides = (): Partial<VideoGenerateRequest> => {
 
   if (store.currentPipeline === 'image_to_video') {
     return {
-      ...ttsOverrides,
-      ...mediaOverrides,
-      pipeline: 'image_to_video',
-      source: inferWorkflowSource(),
-      image: i2vImageFile.value?.path,
-      prompt_text: store.text,
+      ...ttsOverrides, ...mediaOverrides, pipeline: 'image_to_video',
+      source: inferWorkflowSource(), image: i2vImageFile.value?.path, prompt_text: store.text,
     }
   }
 
   if (store.currentPipeline === 'action_transfer') {
     return {
-      ...ttsOverrides,
-      ...mediaOverrides,
-      pipeline: 'action_transfer',
-      source: inferWorkflowSource(),
-      action_video: atVideoFile.value?.path,
-      action_image: atImageFile.value?.path,
-      prompt_text: store.text,
+      ...ttsOverrides, ...mediaOverrides, pipeline: 'action_transfer',
+      source: inferWorkflowSource(), action_video: atVideoFile.value?.path,
+      action_image: atImageFile.value?.path, prompt_text: store.text,
     }
   }
 
-  return {
-    ...ttsOverrides,
-    ...mediaOverrides,
-    pipeline: 'standard',
-  }
+  return { ...ttsOverrides, ...mediaOverrides, pipeline: 'standard' }
 }
 
 const handleGenerate = async () => {
-  // Validate based on pipeline
   if (store.currentPipeline === 'quick_create') {
-    if (!store.text.trim()) {
-      ElMessage.error(t('error.input_required'))
-      return
-    }
-    if (!store.frameTemplate) {
-      ElMessage.error(t('template.select'))
-      return
-    }
+    if (!store.text.trim()) { ElMessage.error(t('error.input_required')); return }
+    if (!store.frameTemplate) { ElMessage.error(t('template.select')); return }
   } else if (store.currentPipeline === 'custom_media') {
-    if (assetFiles.value.length === 0) {
-      ElMessage.error(t('asset_based.empty_hint'))
-      return
-    }
+    if (assetFiles.value.length === 0) { ElMessage.error(t('asset_based.empty_hint')); return }
   } else if (store.currentPipeline === 'digital_human') {
-    if (characterFiles.value.length === 0) {
-      ElMessage.error(t('digital_human.character_empty_hint'))
-      return
-    }
+    if (characterFiles.value.length === 0) { ElMessage.error(t('digital_human.character_empty_hint')); return }
   } else if (store.currentPipeline === 'image_to_video') {
-    if (!i2vImageFile.value) {
-      ElMessage.error(t('i2v.character_empty_hint'))
-      return
-    }
+    if (!i2vImageFile.value) { ElMessage.error(t('i2v.character_empty_hint')); return }
   } else if (store.currentPipeline === 'action_transfer') {
-    if (!atVideoFile.value) {
-      ElMessage.error(t('action_transfer.video_empty_hint'))
-      return
-    }
-    if (!atImageFile.value) {
-      ElMessage.error(t('action_transfer.image_empty_hint'))
-      return
-    }
+    if (!atVideoFile.value) { ElMessage.error(t('action_transfer.video_empty_hint')); return }
+    if (!atImageFile.value) { ElMessage.error(t('action_transfer.image_empty_hint')); return }
   }
 
   if (
     store.currentPipeline === 'digital_human' ||
-    store.currentPipeline === 'image_to_video' ||
     store.currentPipeline === 'action_transfer'
   ) {
     ElMessage.error('当前后端暂未开放该流程的 API，请先使用快速创建或自定义素材流程')
@@ -500,20 +471,16 @@ const handleGenerate = async () => {
     const req = store.buildRequest(buildPipelineOverrides())
     const data = await generateVideoAsync(req)
     store.currentTaskId = data.task_id
-
     ElMessage.success(t('status.generating'))
 
-    // Poll task progress
     const pollInterval = setInterval(async () => {
       try {
         const { getTaskStatus } = await import('@/api/tasks')
         const task = await getTaskStatus(data.task_id)
-
         if (task.progress) {
           progressPercent.value = task.progress.percentage
           progressMessage.value = task.progress.message || ''
         }
-
         if (task.status === 'completed') {
           clearInterval(pollInterval)
           store.isGenerating = false
@@ -545,14 +512,13 @@ onMounted(() => {
   loadApiConfig()
 })
 
-const openUrl = (url: string) => {
-  window.open(url, '_blank')
-}
+const openUrl = (url: string) => window.open(url, '_blank')
 </script>
 
 <template>
-  <div class="home-view animate-fade-in">
-    <div class="workspace-header">
+  <div class="home-view">
+    <!-- Header -->
+    <header class="workspace-header">
       <div class="workspace-identity">
         <div class="workspace-avatar">
           <el-icon><component :is="pipelineIcons[store.currentPipeline]" /></el-icon>
@@ -562,46 +528,51 @@ const openUrl = (url: string) => {
           <p><span class="online-dot"></span>{{ currentPipelineInfo.desc }}</p>
         </div>
       </div>
+    </header>
 
-      <div class="workspace-tools">
-        <button title="Assets"><el-icon><FolderOpened /></el-icon></button>
-        <button title="Template"><el-icon><Picture /></el-icon></button>
-        <button title="Settings"><el-icon><Brush /></el-icon></button>
-      </div>
+    <!-- Step Progress -->
+    <div class="step-progress">
+      <template v-for="(step, idx) in visibleSteps" :key="step.key">
+        <div class="step-node-wrap" :class="{ complete: isStepComplete(step.key) }">
+          <div class="step-node">
+            <el-icon v-if="isStepComplete(step.key)"><CircleCheck /></el-icon>
+            <span v-else>{{ idx + 1 }}</span>
+          </div>
+          <span class="step-node-label">{{ t(step.titleKey) }}</span>
+        </div>
+        <div v-if="idx < visibleSteps.length - 1" class="step-connector" :class="{ complete: isStepComplete(step.key) }"></div>
+      </template>
     </div>
 
-    <!-- Main Content Area -->
-    <div class="content-area">
-      <!-- Left: Pipeline-Specific Input Section -->
-      <div class="input-section">
+    <!-- Step Cards -->
+    <div class="step-scroll">
+      <div class="step-container">
 
-        <!-- ========================================== -->
-        <!-- quick_create: Content Input -->
-        <!-- ========================================== -->
-        <template v-if="store.currentPipeline === 'quick_create'">
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Edit /></el-icon>
-              <span>{{ t('section.content_input') }}</span>
+        <!-- ============================================ -->
+        <!-- Step 1: Content Input (per pipeline)         -->
+        <!-- ============================================ -->
+        <div class="step-card" :class="{ complete: isStepComplete('content') }">
+          <div class="step-card-header">
+            <div class="step-badge">
+              <el-icon v-if="isStepComplete('content')"><CircleCheck /></el-icon>
+              <span v-else>1</span>
             </div>
-            <div class="section-card-body">
-              <!-- Mode Selection -->
+            <span class="step-title">{{ t('progressive.step.content') }}</span>
+          </div>
+          <div class="step-card-body">
+
+            <!-- quick_create: Content Input -->
+            <template v-if="store.currentPipeline === 'quick_create'">
               <div class="mode-selector">
                 <button class="mode-btn" :class="{ active: store.mode === 'generate' }" @click="store.mode = 'generate'">
-                  <el-icon><Star /></el-icon>
-                  <span>{{ t('mode.generate') }}</span>
+                  <el-icon><Star /></el-icon><span>{{ t('mode.generate') }}</span>
                 </button>
                 <button class="mode-btn" :class="{ active: store.mode === 'fixed' }" @click="store.mode = 'fixed'">
-                  <el-icon><Edit /></el-icon>
-                  <span>{{ t('mode.fixed') }}</span>
+                  <el-icon><Edit /></el-icon><span>{{ t('mode.fixed') }}</span>
                 </button>
               </div>
-
-              <!-- Text Input -->
               <div class="input-group">
-                <label class="input-label">
-                  {{ store.mode === 'generate' ? t('input.topic') : t('input.content') }}
-                </label>
+                <label class="input-label">{{ store.mode === 'generate' ? t('input.topic') : t('input.content') }}</label>
                 <el-input
                   v-model="store.text"
                   type="textarea"
@@ -610,8 +581,6 @@ const openUrl = (url: string) => {
                   class="content-textarea"
                 />
               </div>
-
-              <!-- Split Mode (fixed mode only) -->
               <div v-if="store.mode === 'fixed'" class="input-group">
                 <label class="input-label">{{ t('split.mode_label') }}</label>
                 <el-select v-model="splitMode" class="full-select">
@@ -620,8 +589,6 @@ const openUrl = (url: string) => {
                   <el-option :label="t('split.mode_sentence')" value="sentence" />
                 </el-select>
               </div>
-
-              <!-- Title & Scenes -->
               <div class="input-row">
                 <div class="input-group flex-1">
                   <label class="input-label">{{ t('input.title') }}</label>
@@ -635,68 +602,33 @@ const openUrl = (url: string) => {
                   </div>
                 </div>
               </div>
-              <p v-if="store.mode === 'fixed'" class="hint-text">
-                {{ t('video.frames_fixed_mode_hint') }}
-              </p>
-            </div>
-          </div>
-        </template>
+              <p v-if="store.mode === 'fixed'" class="hint-text">{{ t('video.frames_fixed_mode_hint') }}</p>
+            </template>
 
-        <!-- ========================================== -->
-        <!-- custom_media: Asset Upload -->
-        <!-- ========================================== -->
-        <template v-if="store.currentPipeline === 'custom_media'">
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Upload /></el-icon>
-              <span>{{ t('asset_based.section_assets') }}</span>
-            </div>
-            <div class="section-card-body">
+            <!-- custom_media: Asset Upload + Video Info -->
+            <template v-if="store.currentPipeline === 'custom_media'">
               <p class="section-desc">{{ t('asset_based.assets_what') }}</p>
-
-              <!-- Upload Area -->
               <el-upload
                 class="asset-upload-area"
-                drag
-                multiple
-                :auto-upload="false"
+                drag multiple :auto-upload="false"
                 :on-change="(file: any) => handleFileUpload(file.raw, 'asset')"
                 accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm"
               >
                 <el-icon :size="40"><Upload /></el-icon>
                 <div class="el-upload__text">{{ t('asset_based.upload') }}</div>
-                <template #tip>
-                  <div class="el-upload__tip">{{ t('asset_based.upload_help') }}</div>
-                </template>
+                <template #tip><div class="el-upload__tip">{{ t('asset_based.upload_help') }}</div></template>
               </el-upload>
-
-              <!-- Asset Preview Grid -->
               <div v-if="assetFiles.length > 0" class="asset-preview-grid">
                 <div v-for="(file, idx) in assetFiles" :key="idx" class="asset-preview-item">
                   <img v-if="file.type.startsWith('image')" :src="file.url" :alt="file.name" />
                   <video v-else :src="file.url" />
-                  <el-button
-                    class="asset-remove-btn"
-                    :icon="Delete"
-                    circle
-                    size="small"
-                    type="danger"
-                    @click="removeFile('asset', idx)"
-                  />
+                  <el-button class="asset-remove-btn" :icon="Delete" circle size="small" type="danger" @click="removeFile('asset', idx)" />
                   <span class="asset-name">{{ file.name }}</span>
                 </div>
               </div>
               <p v-else class="hint-text">{{ t('asset_based.empty_hint') }}</p>
-            </div>
-          </div>
 
-          <!-- Video Info -->
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Document /></el-icon>
-              <span>{{ t('asset_based.section_video_info') }}</span>
-            </div>
-            <div class="section-card-body">
+              <el-divider />
               <div class="input-group">
                 <label class="input-label">{{ t('asset_based.video_title') }}</label>
                 <el-input v-model="store.title" :placeholder="t('asset_based.video_title_placeholder')" />
@@ -709,29 +641,15 @@ const openUrl = (url: string) => {
                 <label class="input-label">{{ t('asset_based.duration') }}: {{ duration }}s</label>
                 <el-slider v-model="duration" :min="15" :max="120" :step="5" show-stops />
               </div>
-            </div>
-          </div>
-        </template>
+            </template>
 
-        <!-- ========================================== -->
-        <!-- digital_human: Character & Product -->
-        <!-- ========================================== -->
-        <template v-if="store.currentPipeline === 'digital_human'">
-          <!-- Character Upload -->
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Upload /></el-icon>
-              <span>{{ t('digital_human.section_character_assets') }}</span>
-            </div>
-            <div class="section-card-body">
+            <!-- digital_human: Character + Mode -->
+            <template v-if="store.currentPipeline === 'digital_human'">
               <p class="section-desc">{{ t('digital_human.character_what') }}</p>
               <el-upload
-                class="asset-upload-area"
-                drag
-                :auto-upload="false"
+                class="asset-upload-area" drag :auto-upload="false"
                 :on-change="(file: any) => handleFileUpload(file.raw, 'character')"
-                accept=".jpg,.jpeg,.png,.webp"
-                :limit="1"
+                accept=".jpg,.jpeg,.png,.webp" :limit="1"
               >
                 <el-icon :size="40"><Upload /></el-icon>
                 <div class="el-upload__text">{{ t('digital_human.upload') }}</div>
@@ -743,38 +661,22 @@ const openUrl = (url: string) => {
                 </div>
               </div>
               <p v-else class="hint-text">{{ t('digital_human.character_empty_hint') }}</p>
-            </div>
-          </div>
 
-          <!-- Mode Selection -->
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Star /></el-icon>
-              <span>{{ t('digital_human.section_select_mode') }}</span>
-            </div>
-            <div class="section-card-body">
+              <el-divider />
               <div class="mode-selector">
                 <button class="mode-btn" :class="{ active: digitalMode === 'digital' }" @click="digitalMode = 'digital'">
-                  <el-icon><Star /></el-icon>
-                  <span>{{ t('mode.digital') }}</span>
+                  <el-icon><Star /></el-icon><span>{{ t('mode.digital') }}</span>
                 </button>
                 <button class="mode-btn" :class="{ active: digitalMode === 'customize' }" @click="digitalMode = 'customize'">
-                  <el-icon><Edit /></el-icon>
-                  <span>{{ t('mode.customize') }}</span>
+                  <el-icon><Edit /></el-icon><span>{{ t('mode.customize') }}</span>
                 </button>
               </div>
-
-              <!-- Digital mode: Product upload + goods title -->
               <template v-if="digitalMode === 'digital'">
                 <div class="input-group">
                   <label class="input-label">{{ t('digital_human.section_goods_info') }}</label>
-                  <el-upload
-                    class="asset-upload-area small"
-                    drag
-                    :auto-upload="false"
+                  <el-upload class="asset-upload-area small" drag :auto-upload="false"
                     :on-change="(file: any) => handleFileUpload(file.raw, 'product')"
-                    accept=".jpg,.jpeg,.png,.webp"
-                    :limit="1"
+                    accept=".jpg,.jpeg,.png,.webp" :limit="1"
                   >
                     <el-icon :size="32"><Upload /></el-icon>
                     <div class="el-upload__text">{{ t('digital_human.upload') }}</div>
@@ -796,36 +698,20 @@ const openUrl = (url: string) => {
                   <el-input v-model="store.text" type="textarea" :rows="4" :placeholder="t('digital_human.digital_mode')" />
                 </div>
               </template>
-
-              <!-- Customize mode: text input -->
               <template v-if="digitalMode === 'customize'">
                 <div class="input-group">
                   <label class="input-label">{{ t('digital_human.customize_text') }}</label>
                   <el-input v-model="store.text" type="textarea" :rows="6" :placeholder="t('digital_human.customize_mode')" />
                 </div>
               </template>
-            </div>
-          </div>
-        </template>
+            </template>
 
-        <!-- ========================================== -->
-        <!-- image_to_video: Image + Prompt -->
-        <!-- ========================================== -->
-        <template v-if="store.currentPipeline === 'image_to_video'">
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Upload /></el-icon>
-              <span>{{ t('i2v.video_generation') }}</span>
-            </div>
-            <div class="section-card-body">
+            <!-- image_to_video: Image + Prompt -->
+            <template v-if="store.currentPipeline === 'image_to_video'">
               <p class="section-desc">{{ t('i2v.image_what') }}</p>
-              <el-upload
-                class="asset-upload-area"
-                drag
-                :auto-upload="false"
+              <el-upload class="asset-upload-area" drag :auto-upload="false"
                 :on-change="(file: any) => handleFileUpload(file.raw, 'i2v')"
-                accept=".jpg,.jpeg,.png,.webp"
-                :limit="1"
+                accept=".jpg,.jpeg,.png,.webp" :limit="1"
               >
                 <el-icon :size="40"><Upload /></el-icon>
                 <div class="el-upload__text">{{ t('i2v.upload') }}</div>
@@ -837,40 +723,22 @@ const openUrl = (url: string) => {
                 </div>
               </div>
               <p v-else class="hint-text">{{ t('i2v.character_empty_hint') }}</p>
-
               <div class="input-group mt-4">
                 <label class="input-label">{{ t('i2v.input_text') }}</label>
                 <el-input v-model="store.text" type="textarea" :rows="4" :placeholder="t('i2v.input_text')" />
               </div>
-            </div>
-          </div>
-        </template>
+            </template>
 
-        <!-- ========================================== -->
-        <!-- action_transfer: Video + Image + Prompt -->
-        <!-- ========================================== -->
-        <template v-if="store.currentPipeline === 'action_transfer'">
-          <!-- Video Upload -->
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Film /></el-icon>
-              <span>{{ t('action_transfer.video_upload') }}</span>
-            </div>
-            <div class="section-card-body">
+            <!-- action_transfer: Video + Image + Prompt -->
+            <template v-if="store.currentPipeline === 'action_transfer'">
               <p class="section-desc">{{ t('action_transfer.video_what') }}</p>
-              <el-upload
-                class="asset-upload-area"
-                drag
-                :auto-upload="false"
+              <el-upload class="asset-upload-area" drag :auto-upload="false"
                 :on-change="(file: any) => handleFileUpload(file.raw, 'at_video')"
-                accept=".mp4,.mkv,.mov"
-                :limit="1"
+                accept=".mp4,.mkv,.mov" :limit="1"
               >
                 <el-icon :size="40"><Upload /></el-icon>
                 <div class="el-upload__text">{{ t('action_transfer.video_upload') }}</div>
-                <template #tip>
-                  <div class="el-upload__tip">{{ t('action_transfer.video_upload_help') }}</div>
-                </template>
+                <template #tip><div class="el-upload__tip">{{ t('action_transfer.video_upload_help') }}</div></template>
               </el-upload>
               <div v-if="atVideoFile" class="asset-preview-grid single">
                 <div class="asset-preview-item">
@@ -879,24 +747,12 @@ const openUrl = (url: string) => {
                 </div>
               </div>
               <p v-else class="hint-text">{{ t('action_transfer.video_empty_hint') }}</p>
-            </div>
-          </div>
 
-          <!-- Image Upload -->
-          <div class="section-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><Picture /></el-icon>
-              <span>{{ t('action_transfer.image_upload') }}</span>
-            </div>
-            <div class="section-card-body">
+              <el-divider />
               <p class="section-desc">{{ t('action_transfer.image_what') }}</p>
-              <el-upload
-                class="asset-upload-area"
-                drag
-                :auto-upload="false"
+              <el-upload class="asset-upload-area" drag :auto-upload="false"
                 :on-change="(file: any) => handleFileUpload(file.raw, 'at_image')"
-                accept=".jpg,.jpeg,.png,.webp"
-                :limit="1"
+                accept=".jpg,.jpeg,.png,.webp" :limit="1"
               >
                 <el-icon :size="40"><Upload /></el-icon>
                 <div class="el-upload__text">{{ t('action_transfer.image_upload') }}</div>
@@ -908,69 +764,166 @@ const openUrl = (url: string) => {
                 </div>
               </div>
               <p v-else class="hint-text">{{ t('action_transfer.image_empty_hint') }}</p>
-
               <div class="input-group mt-4">
                 <label class="input-label">{{ t('action_transfer.input_text') }}</label>
                 <el-input v-model="store.text" type="textarea" :rows="3" :placeholder="t('action_transfer.input_text')" />
               </div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- Right: Common Settings Section -->
-      <div class="settings-section">
-        <!-- Provider / Source Selection -->
-        <div class="section-card source-card">
-          <div class="section-card-header">
-            <el-icon class="section-icon"><Monitor /></el-icon>
-            <span>{{ t('source.title') }}</span>
-          </div>
-          <div class="section-card-body">
-            <div class="source-grid">
-              <button
-                v-for="source in sourceOptions"
-                :key="source.value"
-                class="source-option"
-                :class="{ active: mediaSource === source.value }"
-                @click="mediaSource = source.value"
-              >
-                <span class="source-badge">{{ source.badge }}</span>
-                <span class="source-name">{{ t(source.titleKey) }}</span>
-                <span class="source-desc">{{ t(source.descKey) }}</span>
-              </button>
-            </div>
+            </template>
           </div>
         </div>
 
-        <!-- TTS Configuration -->
-        <div class="section-card">
-          <div class="section-card-header">
-            <el-icon class="section-icon"><Mic /></el-icon>
-            <span>{{ t('section.tts') }}</span>
+        <!-- ============================================ -->
+        <!-- Step: Template (quick_create only)            -->
+        <!-- ============================================ -->
+        <div v-if="store.currentPipeline === 'quick_create'" class="step-card" :class="{ complete: isStepComplete('template') }">
+          <div class="step-card-header">
+            <div class="step-badge">
+              <el-icon v-if="isStepComplete('template')"><CircleCheck /></el-icon>
+              <span v-else>2</span>
+            </div>
+            <span class="step-title">{{ t('progressive.step.template') }}</span>
           </div>
-          <div class="section-card-body">
-            <!-- TTS Mode Toggle -->
-            <div class="mode-selector small">
-              <button class="mode-btn" :class="{ active: ttsMode === 'local' }" @click="ttsMode = 'local'">
-                {{ t('tts.mode.local') }}
-              </button>
-              <button class="mode-btn" :class="{ active: ttsMode === 'comfyui' }" @click="ttsMode = 'comfyui'">
-                {{ t('tts.mode.comfyui') }}
+          <div class="step-card-body">
+            <div class="template-kind-selector">
+              <button v-for="option in templateTypeOptions" :key="option.value"
+                class="template-kind-btn" :class="{ active: templateKind === option.value }"
+                @click="templateKind = option.value"
+              >{{ t(option.labelKey) }}</button>
+            </div>
+            <div v-if="selectedTemplate" class="selected-template-strip">
+              <span class="selected-template-label">{{ t('template.selected_template') }}</span>
+              <strong>{{ formatTemplateName(selectedTemplate.name) }}</strong>
+              <span>{{ selectedTemplate.width }}x{{ selectedTemplate.height }}</span>
+            </div>
+            <div class="template-gallery">
+              <button v-for="tmpl in visibleTemplates" :key="tmpl.key"
+                class="template-card" :class="{ active: store.frameTemplate === tmpl.key }"
+                @click="store.frameTemplate = tmpl.key"
+              >
+                <div class="template-preview" :class="tmpl.orientation">
+                  <div class="template-preview-fallback"><span>{{ tmpl.width }}x{{ tmpl.height }}</span></div>
+                  <img :src="templatePreviewUrl(tmpl)" :alt="tmpl.display_name" class="template-preview-img" loading="lazy" @error="handleTemplateImageError" />
+                </div>
+                <div class="template-card-meta">
+                  <span class="template-card-name">{{ formatTemplateName(tmpl.name) }}</span>
+                  <span class="template-card-size">{{ t(`orientation.${tmpl.orientation}`) }} · {{ tmpl.size }}</span>
+                </div>
               </button>
             </div>
+            <p v-if="visibleTemplates.length === 0" class="hint-text">{{ t('template.no_templates_with_preview') }}</p>
+          </div>
+        </div>
 
-            <!-- Local Mode: Voice + Speed -->
+        <!-- ============================================ -->
+        <!-- Step: Media Source                           -->
+        <!-- ============================================ -->
+        <div class="step-card">
+          <div class="step-card-header">
+            <div class="step-badge">
+              <span>{{ store.currentPipeline === 'quick_create' ? 3 : 2 }}</span>
+            </div>
+            <span class="step-title">{{ t('progressive.step.media') }}</span>
+          </div>
+          <div class="step-card-body">
+            <!-- Video API pipelines: direct model switcher -->
+            <template v-if="isVideoApiPipeline">
+              <div class="video-model-section">
+                <div class="input-group">
+                  <label class="input-label">{{ t('source.api_provider') }}</label>
+                  <el-select v-model="currentApiPreset" :placeholder="t('source.api_provider_placeholder')" class="full-select" filterable>
+                    <el-option v-for="preset in currentApiPresets" :key="preset.name" :label="preset.name" :value="preset.name" />
+                  </el-select>
+                </div>
+                <div class="input-group">
+                  <label class="input-label">{{ t('settings.llm.model') || '模型' }}</label>
+                  <el-select v-if="currentApiModels.length > 0" v-model="currentApiService.model" class="full-select">
+                    <el-option v-for="model in currentApiModels" :key="model.id" :label="model.name" :value="model.id" />
+                  </el-select>
+                  <el-input v-else v-model="currentApiService.model" :placeholder="t('source.api_model_placeholder')" />
+                </div>
+                <p class="hint-text small">{{ t('source.api_key_hint') }}</p>
+              </div>
+            </template>
+
+            <!-- Other pipelines: full source selector -->
+            <template v-else>
+              <div class="source-grid">
+                <button v-for="source in sourceOptions" :key="source.value"
+                  class="source-option" :class="{ active: mediaSource === source.value }"
+                  @click="mediaSource = source.value"
+                >
+                  <span class="source-badge">{{ source.badge }}</span>
+                  <span class="source-name">{{ t(source.titleKey) }}</span>
+                </button>
+              </div>
+
+              <!-- API config -->
+              <div v-if="isApiMediaSource" class="api-source-note">
+                <span class="api-source-title">
+                  {{ mediaSource === 'video_api' ? t('source.video_api') : t('source.image_api') }}
+                </span>
+                <div class="api-provider-controls">
+                  <label class="input-label">{{ t('source.api_provider') }}</label>
+                  <el-select v-model="currentApiPreset" :placeholder="t('source.api_provider_placeholder')" class="full-select" filterable>
+                    <el-option v-for="preset in currentApiPresets" :key="preset.name" :label="preset.name" :value="preset.name" />
+                  </el-select>
+                  <label class="input-label">{{ t('settings.llm.model') || '模型' }}</label>
+                  <el-select v-if="currentApiModels.length > 0" v-model="currentApiService.model" class="full-select" filterable>
+                    <el-option v-for="model in currentApiModels" :key="model.id" :label="model.name" :value="model.id" />
+                  </el-select>
+                  <el-input v-else v-model="currentApiService.model" :placeholder="t('source.api_model_placeholder')" />
+                  <p class="hint-text small">{{ t('source.api_key_hint') }}</p>
+                </div>
+              </div>
+
+              <!-- Workflow selector -->
+              <div v-else-if="store.currentPipeline !== 'action_transfer'" class="workflow-group">
+                <label class="input-label">
+                  <el-icon><VideoCamera /></el-icon>
+                  {{ store.currentPipeline === 'image_to_video' ? t('i2v.workflow_select') : t('style.workflow') }}
+                </label>
+                <el-select v-model="store.mediaWorkflow" :placeholder="t('style.workflow')" class="full-select" clearable>
+                  <el-option v-for="wf in filteredMediaWorkflows" :key="wf.key" :label="wf.display_name" :value="wf.key" />
+                </el-select>
+                <p v-if="filteredMediaWorkflows.length === 0" class="hint-text small">{{ t('source.no_workflows') }}</p>
+              </div>
+              <div v-else class="workflow-group">
+                <label class="input-label">
+                  <el-icon><VideoCamera /></el-icon>
+                  {{ t('action_transfer.workflow_select') }}
+                </label>
+                <el-select v-model="store.mediaWorkflow" :placeholder="t('action_transfer.workflow_select')" class="full-select" clearable>
+                  <el-option v-for="wf in filteredMediaWorkflows" :key="wf.key" :label="wf.display_name" :value="wf.key" />
+                </el-select>
+                <p v-if="filteredMediaWorkflows.length === 0" class="hint-text small">{{ t('source.no_workflows') }}</p>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- Step: Voice & Audio                          -->
+        <!-- ============================================ -->
+        <div class="step-card">
+          <div class="step-card-header">
+            <div class="step-badge">
+              <span>{{ store.currentPipeline === 'quick_create' ? 4 : 3 }}</span>
+            </div>
+            <span class="step-title">{{ t('progressive.step.voice') }}</span>
+          </div>
+          <div class="step-card-body">
+            <!-- TTS Mode Toggle -->
+            <div class="mode-selector small">
+              <button class="mode-btn" :class="{ active: ttsMode === 'local' }" @click="ttsMode = 'local'">{{ t('tts.mode.local') }}</button>
+              <button class="mode-btn" :class="{ active: ttsMode === 'comfyui' }" @click="ttsMode = 'comfyui'">{{ t('tts.mode.comfyui') }}</button>
+            </div>
+
+            <!-- Local TTS -->
             <template v-if="ttsMode === 'local'">
               <div class="input-group">
                 <label class="input-label">{{ t('tts.voice_selector') }}</label>
                 <el-select v-model="ttsVoice" class="full-select">
-                  <el-option
-                    v-for="v in voiceOptions"
-                    :key="v.id"
-                    :label="t(v.label)"
-                    :value="v.id"
-                  />
+                  <el-option v-for="v in voiceOptions" :key="v.id" :label="t(v.label)" :value="v.id" />
                 </el-select>
               </div>
               <div class="input-group">
@@ -979,28 +932,19 @@ const openUrl = (url: string) => {
               </div>
             </template>
 
-            <!-- ComfyUI Mode: Workflow + Ref Audio -->
+            <!-- ComfyUI TTS -->
             <template v-if="ttsMode === 'comfyui'">
               <div class="input-group">
                 <label class="input-label">{{ t('tts.selector') }}</label>
                 <el-select v-model="store.ttsWorkflow" class="full-select" clearable>
-                  <el-option
-                    v-for="wf in filteredTtsWorkflows"
-                    :key="wf.key"
-                    :label="wf.display_name"
-                    :value="wf.key"
-                  />
+                  <el-option v-for="wf in filteredTtsWorkflows" :key="wf.key" :label="wf.display_name" :value="wf.key" />
                 </el-select>
               </div>
               <div class="input-group">
                 <label class="input-label">{{ t('tts.ref_audio') }}</label>
-                <el-upload
-                  class="ref-audio-upload"
-                  :auto-upload="false"
+                <el-upload class="ref-audio-upload" :auto-upload="false"
                   :on-change="(file: any) => handleFileUpload(file.raw, 'ref_audio')"
-                  accept=".mp3,.wav,.flac,.m4a,.aac,.ogg"
-                  :limit="1"
-                  :show-file-list="false"
+                  accept=".mp3,.wav,.flac,.m4a,.aac,.ogg" :limit="1" :show-file-list="false"
                 >
                   <el-button size="small" :icon="Upload">{{ t('tts.ref_audio') }}</el-button>
                 </el-upload>
@@ -1011,195 +955,48 @@ const openUrl = (url: string) => {
                 <p v-else class="hint-text small">{{ t('tts.ref_audio_help') }}</p>
               </div>
             </template>
-          </div>
-        </div>
 
-        <!-- Template Card (quick_create only) -->
-        <div class="section-card" v-if="store.currentPipeline === 'quick_create'">
-          <div class="section-card-header">
-            <el-icon class="section-icon"><Picture /></el-icon>
-            <span>{{ t('template.selector') }}</span>
-          </div>
-          <div class="section-card-body">
-            <div class="template-kind-selector">
-              <button
-                v-for="option in templateTypeOptions"
-                :key="option.value"
-                class="template-kind-btn"
-                :class="{ active: templateKind === option.value }"
-                @click="templateKind = option.value"
-              >
-                {{ t(option.labelKey) }}
-              </button>
-            </div>
+            <el-divider />
 
-            <div v-if="selectedTemplate" class="selected-template-strip">
-              <span class="selected-template-label">{{ t('template.selected_template') }}</span>
-              <strong>{{ formatTemplateName(selectedTemplate.name) }}</strong>
-              <span>{{ selectedTemplate.width }}x{{ selectedTemplate.height }}</span>
-            </div>
-
-            <div class="template-gallery">
-              <button
-                v-for="tmpl in visibleTemplates"
-                :key="tmpl.key"
-                class="template-card"
-                :class="{ active: store.frameTemplate === tmpl.key }"
-                @click="store.frameTemplate = tmpl.key"
-              >
-                <div class="template-preview" :class="tmpl.orientation">
-                  <div class="template-preview-fallback">
-                    <span>{{ tmpl.width }}x{{ tmpl.height }}</span>
-                  </div>
-                  <img
-                    :src="templatePreviewUrl(tmpl)"
-                    :alt="tmpl.display_name"
-                    class="template-preview-img"
-                    loading="lazy"
-                    @error="handleTemplateImageError"
-                  />
-                </div>
-                <div class="template-card-meta">
-                  <span class="template-card-name">{{ formatTemplateName(tmpl.name) }}</span>
-                  <span class="template-card-size">{{ t(`orientation.${tmpl.orientation}`) }} · {{ tmpl.size }}</span>
-                </div>
-              </button>
-            </div>
-
-            <p v-if="visibleTemplates.length === 0" class="hint-text">
-              {{ t('template.no_templates_with_preview') }}
-            </p>
-          </div>
-        </div>
-
-        <!-- Media Workflow Card -->
-        <div class="section-card">
-          <div class="section-card-header">
-            <el-icon class="section-icon"><Brush /></el-icon>
-            <span>{{ t('style.workflow') }}</span>
-          </div>
-          <div class="section-card-body">
-            <div class="workflow-group" v-if="store.currentPipeline !== 'quick_create'">
-              <label class="input-label">
-                <el-icon><Mic /></el-icon>
-                {{ t('tts.selector') }}
-              </label>
-              <el-select v-model="store.ttsWorkflow" :placeholder="t('tts.selector')" class="full-select" clearable>
-                <el-option v-for="wf in filteredTtsWorkflows" :key="wf.key" :label="wf.display_name" :value="wf.key" />
+            <!-- BGM -->
+            <div class="input-group">
+              <label class="input-label">{{ t('section.bgm') }}</label>
+              <el-select v-model="store.bgmPath" :placeholder="t('bgm.selector')" class="full-select" clearable>
+                <el-option :label="t('bgm.none')" :value="''" />
+                <el-option v-for="bgm in bgmFiles" :key="bgm.path" :label="bgm.name" :value="bgm.path" />
               </el-select>
-            </div>
-
-            <div v-if="isApiMediaSource" class="api-source-note">
-              <span class="api-source-title">
-                {{ mediaSource === 'video_api' ? t('source.video_api') : t('source.image_api') }}
-              </span>
-              <span>{{ t('source.api_config_hint') }}</span>
-              <div class="api-provider-controls">
-                <label class="input-label">{{ t('source.api_provider') }}</label>
-                <el-select
-                  v-model="currentApiPreset"
-                  :placeholder="t('source.api_provider_placeholder')"
-                  class="full-select"
-                  filterable
-                >
-                  <el-option
-                    v-for="preset in currentApiPresets"
-                    :key="preset.name"
-                    :label="preset.name"
-                    :value="preset.name"
-                  />
-                </el-select>
-                <label class="input-label">{{ t('settings.llm.model') || '模型' }}</label>
-                <el-select
-                  v-if="currentApiModels.length > 0"
-                  v-model="currentApiService.model"
-                  class="full-select"
-                  filterable
-                >
-                  <el-option
-                    v-for="model in currentApiModels"
-                    :key="model.id"
-                    :label="model.name"
-                    :value="model.id"
-                  />
-                </el-select>
-                <el-input
-                  v-else
-                  v-model="currentApiService.model"
-                  :placeholder="t('source.api_model_placeholder')"
-                />
-                <p class="hint-text small">
-                  {{ t('source.api_key_hint') }}
-                </p>
+              <div class="volume-control" v-if="store.bgmPath">
+                <label class="input-label">{{ t('bgm.volume') }}: {{ Math.round(store.bgmVolume * 100) }}%</label>
+                <el-slider v-model="store.bgmVolume" :min="0" :max="0.5" :step="0.01" />
               </div>
             </div>
+          </div>
+        </div>
 
-            <div class="workflow-group" v-else-if="store.currentPipeline !== 'action_transfer'">
-              <label class="input-label">
-                <el-icon><VideoCamera /></el-icon>
-                {{ store.currentPipeline === 'image_to_video' ? t('i2v.workflow_select') : t('style.workflow') }}
-              </label>
-              <el-select v-model="store.mediaWorkflow" :placeholder="t('style.workflow')" class="full-select" clearable>
-                <el-option v-for="wf in filteredMediaWorkflows" :key="wf.key" :label="wf.display_name" :value="wf.key" />
-              </el-select>
-              <p v-if="filteredMediaWorkflows.length === 0" class="hint-text small">
-                {{ t('source.no_workflows') }}
-              </p>
+        <!-- ============================================ -->
+        <!-- Step: Style (quick_create, custom_media)     -->
+        <!-- ============================================ -->
+        <div v-if="store.currentPipeline === 'quick_create' || store.currentPipeline === 'custom_media'" class="step-card">
+          <div class="step-card-header">
+            <div class="step-badge">
+              <span>{{ store.currentPipeline === 'quick_create' ? 5 : 4 }}</span>
             </div>
-            <div class="workflow-group" v-else>
-              <label class="input-label">
-                <el-icon><VideoCamera /></el-icon>
-                {{ t('action_transfer.workflow_select') }}
-              </label>
-              <el-select v-model="store.mediaWorkflow" :placeholder="t('action_transfer.workflow_select')" class="full-select" clearable>
-                <el-option v-for="wf in filteredMediaWorkflows" :key="wf.key" :label="wf.display_name" :value="wf.key" />
-              </el-select>
-              <p v-if="filteredMediaWorkflows.length === 0" class="hint-text small">
-                {{ t('source.no_workflows') }}
-              </p>
+            <span class="step-title">{{ t('progressive.step.style') }}</span>
+          </div>
+          <div class="step-card-body">
+            <div class="input-group">
+              <label class="input-label">{{ t('style.prompt_prefix') }}</label>
+              <el-input v-model="store.promptPrefix" :placeholder="t('style.prompt_prefix_placeholder')" />
+              <p class="hint-text small mt-2">{{ t('style.prompt_prefix_help') }}</p>
             </div>
           </div>
         </div>
 
-        <!-- BGM Card -->
-        <div class="section-card">
-          <div class="section-card-header">
-            <el-icon class="section-icon"><Headset /></el-icon>
-            <span>{{ t('section.bgm') }}</span>
-          </div>
-          <div class="section-card-body">
-            <el-select v-model="store.bgmPath" :placeholder="t('bgm.selector')" class="full-select" clearable>
-              <el-option :label="t('bgm.none')" :value="''" />
-              <el-option v-for="bgm in bgmFiles" :key="bgm.path" :label="bgm.name" :value="bgm.path" />
-            </el-select>
-            <div class="volume-control" v-if="store.bgmPath">
-              <label class="input-label">{{ t('bgm.volume') }}: {{ Math.round(store.bgmVolume * 100) }}%</label>
-              <el-slider v-model="store.bgmVolume" :min="0" :max="0.5" :step="0.01" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Prompt Prefix (quick_create, custom_media) -->
-        <div class="section-card" v-if="store.currentPipeline === 'quick_create' || store.currentPipeline === 'custom_media'">
-          <div class="section-card-header">
-            <el-icon class="section-icon"><Document /></el-icon>
-            <span>{{ t('style.prompt_prefix') }}</span>
-          </div>
-          <div class="section-card-body">
-            <el-input v-model="store.promptPrefix" :placeholder="t('style.prompt_prefix_placeholder')" />
-            <p class="hint-text small mt-2">{{ t('style.prompt_prefix_help') }}</p>
-          </div>
-        </div>
-
-        <!-- Generate Button -->
+        <!-- ============================================ -->
+        <!-- Generate                                     -->
+        <!-- ============================================ -->
         <div class="generate-section">
-          <el-button
-            type="primary"
-            size="large"
-            class="generate-btn"
-            :loading="isGenerating"
-            @click="handleGenerate"
-          >
+          <el-button type="primary" size="large" class="generate-btn" :loading="isGenerating" @click="handleGenerate">
             <template v-if="!isGenerating">
               <el-icon><VideoPlay /></el-icon>
               <span>{{ t('btn.generate') }}</span>
@@ -1208,8 +1005,6 @@ const openUrl = (url: string) => {
               <span>{{ progressMessage || t('status.generating') }}</span>
             </template>
           </el-button>
-
-          <!-- Progress -->
           <transition name="slide-fade">
             <div v-if="isGenerating" class="progress-container">
               <el-progress :percentage="progressPercent" :stroke-width="10" :show-text="false" class="generate-progress" />
@@ -1218,14 +1013,14 @@ const openUrl = (url: string) => {
           </transition>
         </div>
 
-        <!-- Output Preview -->
+        <!-- Output -->
         <transition name="slide-fade">
-          <div v-if="generatedVideoUrl" class="section-card output-card">
-            <div class="section-card-header">
-              <el-icon class="section-icon"><VideoCamera /></el-icon>
-              <span>{{ t('info.video_information') }}</span>
+          <div v-if="generatedVideoUrl" class="step-card output-card">
+            <div class="step-card-header">
+              <div class="step-badge complete"><el-icon><CircleCheck /></el-icon></div>
+              <span class="step-title">{{ t('info.video_information') }}</span>
             </div>
-            <div class="section-card-body">
+            <div class="step-card-body">
               <video :src="generatedVideoUrl" controls class="output-video" />
               <div class="output-info">
                 <div class="info-row" v-if="generationTime">
@@ -1247,6 +1042,7 @@ const openUrl = (url: string) => {
             </div>
           </div>
         </transition>
+
       </div>
     </div>
   </div>
@@ -1260,14 +1056,14 @@ const openUrl = (url: string) => {
   background: #ffffff;
 }
 
+/* ---- Header ---- */
 .workspace-header {
-  height: 76px;
+  height: 64px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 28px;
   border-bottom: 1px solid #eeeeeb;
-  background: #ffffff;
+  flex-shrink: 0;
 }
 
 .workspace-identity {
@@ -1277,21 +1073,21 @@ const openUrl = (url: string) => {
 }
 
 .workspace-avatar {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
   color: #6b7280;
   background: #eef5f3;
   border: 1px solid #dfe9e5;
   border-radius: 50%;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .workspace-identity h1 {
   margin: 0;
   color: #171615;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -1306,120 +1102,163 @@ const openUrl = (url: string) => {
 }
 
 .online-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   background: #22c55e;
   border-radius: 50%;
 }
 
-.workspace-tools {
+/* ---- Step Progress ---- */
+.step-progress {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 0;
+  padding: 16px 28px;
+  border-bottom: 1px solid #eeeeeb;
+  background: #fafaf8;
+  flex-shrink: 0;
+  overflow-x: auto;
 }
 
-.workspace-tools button {
+.step-node-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.step-node {
   width: 30px;
   height: 30px;
   display: grid;
   place-items: center;
-  color: #171615;
-  background: transparent;
-  border: 0;
-  border-radius: 10px;
-  cursor: pointer;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 700;
+  transition: all 0.2s;
 }
 
-.workspace-tools button:hover {
-  background: #f3f2ef;
+.step-node-wrap.complete .step-node {
+  background: #ecfdf5;
+  color: #22c55e;
 }
 
-/* Content Area Layout */
-.content-area {
+.step-node-label {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.step-node-wrap.complete .step-node-label {
+  color: #22c55e;
+}
+
+.step-connector {
+  flex: 1;
+  min-width: 20px;
+  height: 2px;
+  background: #e5e7eb;
+  margin-top: 14px;
+  transition: background 0.2s;
+}
+
+.step-connector.complete {
+  background: #22c55e;
+}
+
+/* ---- Step Scroll ---- */
+.step-scroll {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 0;
-  background: #ffffff;
-}
-
-@media (max-width: 1024px) {
-  .content-area { grid-template-columns: 1fr; }
-  .settings-section { display: none; }
-}
-
-.input-section,
-.settings-section {
-  min-height: 0;
   overflow-y: auto;
+  padding: 24px 28px 120px;
 }
 
-.input-section {
-  padding: 42px min(7vw, 88px) 120px;
+.step-container {
+  max-width: 740px;
+  margin: 0 auto;
 }
 
-.settings-section {
-  padding: 22px 20px 120px;
-  background: #fafaf8;
-  border-left: 1px solid #eeeeeb;
-}
-
-/* Section Cards */
-.section-card {
+/* ---- Step Cards ---- */
+.step-card {
   background: #ffffff;
   border: 1px solid #eeeeeb;
-  border-radius: 18px;
+  border-radius: 16px;
   overflow: hidden;
-  margin-bottom: 14px;
-  transition: all var(--pv-transition);
+  margin-bottom: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.section-card:hover {
+.step-card:hover {
   border-color: #dedbd7;
-  box-shadow: 0 12px 28px rgb(20 20 20 / 0.04);
+  box-shadow: 0 4px 16px rgb(20 20 20 / 0.03);
 }
 
-.section-card-header {
+.step-card.complete {
+  border-color: #d1fae5;
+}
+
+.step-card-header {
   display: flex;
   align-items: center;
-  gap: var(--pv-space-2);
-  padding: 15px 18px;
-  background: #ffffff;
+  gap: 12px;
+  padding: 14px 18px;
   border-bottom: 1px solid #f0efec;
-  font-weight: 600;
+}
+
+.step-badge {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.step-badge.complete,
+.step-card.complete .step-badge {
+  background: #ecfdf5;
+  color: #22c55e;
+}
+
+.step-title {
   font-size: 14px;
+  font-weight: 600;
   color: #252321;
 }
 
-.section-icon {
-  color: #7b7875;
-  font-size: 18px;
-}
-
-.section-card-body {
+.step-card-body {
   padding: 18px;
 }
 
 .section-desc {
   font-size: 13px;
-  color: var(--pv-text-secondary);
-  margin-bottom: var(--pv-space-4);
+  color: #8a8580;
+  margin-bottom: 12px;
   line-height: 1.5;
 }
 
-/* Mode Selector */
+/* ---- Mode Selector ---- */
 .mode-selector {
   display: flex;
-  gap: var(--pv-space-2);
-  padding: var(--pv-space-1);
+  gap: 4px;
+  padding: 4px;
   background: #f4f4f2;
-  border-radius: 14px;
-  margin-bottom: var(--pv-space-5);
+  border-radius: 12px;
+  margin-bottom: 16px;
 }
 
 .mode-selector.small {
-  margin-bottom: var(--pv-space-4);
+  margin-bottom: 12px;
 }
 
 .mode-btn {
@@ -1427,20 +1266,20 @@ const openUrl = (url: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--pv-space-2);
-  padding: var(--pv-space-3) var(--pv-space-4);
+  gap: 6px;
+  padding: 8px 12px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
-  color: var(--pv-text-secondary);
-  font-size: 14px;
+  color: #8a8580;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--pv-transition);
+  transition: all 0.15s;
 }
 
 .mode-btn:hover {
-  color: var(--pv-text);
+  color: #252321;
   background: #ffffff;
 }
 
@@ -1450,19 +1289,19 @@ const openUrl = (url: string) => {
   box-shadow: 0 2px 8px rgb(20 20 20 / 0.06);
 }
 
-/* Input Groups */
+/* ---- Input Groups ---- */
 .input-group {
-  margin-bottom: var(--pv-space-4);
+  margin-bottom: 12px;
 }
 
 .input-label {
   display: flex;
   align-items: center;
-  gap: var(--pv-space-1);
+  gap: 4px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--pv-text-secondary);
-  margin-bottom: var(--pv-space-2);
+  color: #6b7280;
+  margin-bottom: 6px;
 }
 
 .content-textarea :deep(.el-textarea__inner) {
@@ -1471,14 +1310,14 @@ const openUrl = (url: string) => {
   border: 0;
   background: #f7f7f5;
   box-shadow: none;
-  border-radius: 16px;
+  border-radius: 14px;
   font-size: 14px;
   line-height: 1.7;
 }
 
 .input-row {
   display: flex;
-  gap: var(--pv-space-4);
+  gap: 12px;
 }
 
 .flex-1 { flex: 1; }
@@ -1488,7 +1327,7 @@ const openUrl = (url: string) => {
 .scenes-control {
   display: flex;
   align-items: center;
-  gap: var(--pv-space-3);
+  gap: 8px;
 }
 
 .scenes-value {
@@ -1496,189 +1335,164 @@ const openUrl = (url: string) => {
   text-align: center;
   font-weight: 600;
   font-size: 16px;
-  color: var(--pv-primary);
+  color: #4f46e5;
 }
 
 .full-select { width: 100%; }
 
-/* Workflow Groups */
-.workflow-group {
-  margin-bottom: var(--pv-space-4);
+/* ---- Source Grid ---- */
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
-.workflow-group:last-child { margin-bottom: 0; }
+.source-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  text-align: center;
+  color: #6b7280;
+  background: #f9f9f7;
+  border: 1px solid #eeeeeb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
 
-.workflow-group .input-label .el-icon { font-size: 14px; }
+.source-option:hover {
+  color: #252321;
+  border-color: #d1d5db;
+}
 
+.source-option.active {
+  color: #252321;
+  border-color: #4f46e5;
+  background: #eef2ff;
+  box-shadow: 0 0 0 2px #e0e7ff;
+}
+
+.source-badge {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #4f46e5;
+  background: #eef2ff;
+  border-radius: 4px;
+}
+
+.source-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---- Video Model Section ---- */
+.video-model-section {
+  display: grid;
+  gap: 4px;
+}
+
+/* ---- API Source Note ---- */
 .api-source-note {
   display: grid;
-  gap: var(--pv-space-1);
-  padding: var(--pv-space-4);
-  color: var(--pv-text-secondary);
-  background: var(--pv-bg);
-  border: 1px solid var(--pv-border-light);
-  border-radius: var(--pv-radius-sm);
+  gap: 4px;
+  padding: 12px;
+  color: #6b7280;
+  background: #f9f9f7;
+  border: 1px solid #eeeeeb;
+  border-radius: 12px;
   font-size: 12px;
   line-height: 1.5;
 }
 
 .api-source-title {
-  color: var(--pv-text);
-  font-size: 14px;
+  color: #252321;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .api-provider-controls {
   display: grid;
-  gap: var(--pv-space-3);
-  margin-top: var(--pv-space-3);
+  gap: 8px;
+  margin-top: 8px;
 }
 
-/* Source Selection */
-.source-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--pv-space-3);
+/* ---- Workflow ---- */
+.workflow-group {
+  margin-top: 4px;
 }
 
-.source-option {
-  display: grid;
-  gap: var(--pv-space-1);
-  min-height: 96px;
-  padding: var(--pv-space-4);
-  text-align: left;
-  color: var(--pv-text-secondary);
-  background: var(--pv-bg);
-  border: 1px solid var(--pv-border-light);
-  border-radius: var(--pv-radius-sm);
-  cursor: pointer;
-  transition: all var(--pv-transition);
-}
+.workflow-group .input-label .el-icon { font-size: 14px; }
 
-.source-option:hover {
-  color: var(--pv-text);
-  border-color: var(--pv-border);
-  background: var(--pv-surface);
-}
-
-.source-option.active {
-  color: var(--pv-text);
-  border-color: var(--pv-primary);
-  background: var(--pv-primary-50);
-  box-shadow: 0 0 0 2px var(--pv-primary-100);
-}
-
-.source-badge {
-  justify-self: start;
-  padding: 2px 7px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--pv-primary-dark);
-  background: var(--pv-surface);
-  border: 1px solid var(--pv-primary-100);
-  border-radius: var(--pv-radius-sm);
-}
-
-.source-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--pv-text);
-}
-
-.source-desc {
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-/* Template Gallery */
+/* ---- Template ---- */
 .template-kind-selector {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--pv-space-2);
-  padding: var(--pv-space-1);
-  margin-bottom: var(--pv-space-4);
-  background: var(--pv-bg);
-  border-radius: var(--pv-radius-sm);
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  background: #f4f4f2;
+  border-radius: 10px;
 }
 
 .template-kind-btn {
-  min-height: 36px;
-  padding: 0 var(--pv-space-2);
-  color: var(--pv-text-secondary);
+  min-height: 34px;
+  padding: 0 8px;
+  color: #8a8580;
   background: transparent;
   border: 0;
-  border-radius: var(--pv-radius-sm);
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--pv-transition);
+  transition: all 0.15s;
 }
 
-.template-kind-btn:hover {
-  color: var(--pv-text);
-  background: var(--pv-surface);
-}
-
-.template-kind-btn.active {
-  color: var(--pv-primary);
-  background: var(--pv-surface);
-  box-shadow: var(--pv-shadow-sm);
-}
+.template-kind-btn:hover { color: #252321; background: #ffffff; }
+.template-kind-btn.active { color: #4f46e5; background: #ffffff; box-shadow: 0 2px 6px rgb(20 20 20 / 0.05); }
 
 .selected-template-strip {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--pv-space-2);
-  padding: var(--pv-space-3);
-  margin-bottom: var(--pv-space-4);
-  color: var(--pv-text-secondary);
-  background: var(--pv-surface-hover);
-  border: 1px solid var(--pv-border-light);
-  border-radius: var(--pv-radius-sm);
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  color: #6b7280;
+  background: #f9f9f7;
+  border: 1px solid #eeeeeb;
+  border-radius: 10px;
   font-size: 12px;
 }
 
-.selected-template-strip strong {
-  color: var(--pv-text);
-}
-
-.selected-template-label {
-  color: var(--pv-text-muted);
-}
+.selected-template-strip strong { color: #252321; }
+.selected-template-label { color: #9ca3af; }
 
 .template-gallery {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--pv-space-3);
-  max-height: 420px;
+  gap: 10px;
+  max-height: 400px;
   overflow-y: auto;
-  padding-right: var(--pv-space-1);
 }
 
 .template-card {
   display: grid;
-  gap: var(--pv-space-3);
-  padding: var(--pv-space-3);
+  gap: 8px;
+  padding: 8px;
   text-align: left;
-  background: var(--pv-surface);
-  border: 1px solid var(--pv-border-light);
-  border-radius: var(--pv-radius-sm);
+  background: #f9f9f7;
+  border: 1px solid #eeeeeb;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all var(--pv-transition);
+  transition: all 0.15s;
 }
 
-.template-card:hover {
-  border-color: var(--pv-border);
-  box-shadow: var(--pv-shadow-md);
-  transform: translateY(-1px);
-}
-
-.template-card.active {
-  border-color: var(--pv-primary);
-  background: var(--pv-primary-50);
-  box-shadow: 0 0 0 2px var(--pv-primary-100);
-}
+.template-card:hover { border-color: #d1d5db; transform: translateY(-1px); box-shadow: 0 4px 12px rgb(20 20 20 / 0.04); }
+.template-card.active { border-color: #4f46e5; background: #eef2ff; box-shadow: 0 0 0 2px #e0e7ff; }
 
 .template-preview {
   position: relative;
@@ -1686,33 +1500,24 @@ const openUrl = (url: string) => {
   place-items: center;
   width: 100%;
   overflow: hidden;
-  background:
-    linear-gradient(145deg, rgb(255 255 255 / 0.86), rgb(241 245 249 / 0.96)),
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.86), rgb(241 245 249 / 0.96)),
     repeating-linear-gradient(45deg, transparent 0 8px, rgb(99 102 241 / 0.06) 8px 10px);
-  border: 1px solid var(--pv-border-light);
-  border-radius: var(--pv-radius-sm);
+  border: 1px solid #eeeeeb;
+  border-radius: 8px;
 }
 
-.template-preview.portrait {
-  aspect-ratio: 9 / 14;
-}
-
-.template-preview.landscape {
-  aspect-ratio: 16 / 9;
-}
-
-.template-preview.square {
-  aspect-ratio: 1 / 1;
-}
+.template-preview.portrait { aspect-ratio: 9 / 14; }
+.template-preview.landscape { aspect-ratio: 16 / 9; }
+.template-preview.square { aspect-ratio: 1 / 1; }
 
 .template-preview-fallback {
   position: absolute;
-  inset: var(--pv-space-2);
+  inset: 4px;
   display: grid;
   place-items: center;
-  color: var(--pv-text-muted);
-  border: 1px dashed var(--pv-border);
-  border-radius: var(--pv-radius-sm);
+  color: #9ca3af;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 700;
 }
@@ -1726,77 +1531,46 @@ const openUrl = (url: string) => {
   display: block;
 }
 
-.template-preview-img.is-hidden {
-  display: none;
-}
+.template-preview-img.is-hidden { display: none; }
 
-.template-card-meta {
-  display: grid;
-  gap: 2px;
-}
+.template-card-meta { display: grid; gap: 2px; }
 
 .template-card-name {
-  color: var(--pv-text);
+  color: #252321;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .template-card-size {
-  color: var(--pv-text-muted);
+  color: #9ca3af;
   font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-@media (max-width: 520px) {
-  .source-grid,
-  .template-gallery {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* BGM */
-.volume-control {
-  margin-top: var(--pv-space-4);
-}
-
-.volume-control .el-slider {
-  margin-top: var(--pv-space-2);
-}
-
-/* Asset Upload */
-.asset-upload-area {
-  width: 100%;
-}
-
-.asset-upload-area.small :deep(.el-upload-dragger) {
-  padding: var(--pv-space-4);
-}
+/* ---- Asset Upload ---- */
+.asset-upload-area { width: 100%; }
+.asset-upload-area.small :deep(.el-upload-dragger) { padding: 16px; }
 
 .asset-preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: var(--pv-space-3);
-  margin-top: var(--pv-space-4);
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.asset-preview-grid.single {
-  grid-template-columns: 200px;
-}
-
-.asset-preview-grid.small {
-  grid-template-columns: 140px;
-}
+.asset-preview-grid.single { grid-template-columns: 200px; }
+.asset-preview-grid.small { grid-template-columns: 140px; }
 
 .asset-preview-item {
   position: relative;
-  border-radius: var(--pv-radius);
+  border-radius: 10px;
   overflow: hidden;
-  border: 1px solid var(--pv-border-light);
+  border: 1px solid #eeeeeb;
 }
 
 .asset-preview-item img,
@@ -1812,7 +1586,7 @@ const openUrl = (url: string) => {
   top: 4px;
   right: 4px;
   opacity: 0;
-  transition: opacity var(--pv-transition);
+  transition: opacity 0.15s;
 }
 
 .asset-preview-item:hover .asset-remove-btn { opacity: 1; }
@@ -1820,49 +1594,38 @@ const openUrl = (url: string) => {
 .asset-name {
   display: block;
   font-size: 11px;
-  color: var(--pv-text-secondary);
+  color: #6b7280;
   padding: 4px 6px;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
 }
 
-/* Ref Audio */
 .ref-audio-preview {
   display: flex;
   align-items: center;
-  gap: var(--pv-space-3);
-  margin-top: var(--pv-space-3);
+  gap: 8px;
+  margin-top: 8px;
 }
 
-.audio-player {
-  flex: 1;
-  height: 36px;
-}
+.audio-player { flex: 1; height: 36px; }
 
-/* Hints */
+/* ---- Hints ---- */
 .hint-text {
   font-size: 12px;
-  color: var(--pv-text-muted);
-  margin-top: var(--pv-space-2);
+  color: #9ca3af;
+  margin-top: 6px;
 }
 
-.hint-text.small {
-  font-size: 11px;
-  margin-top: var(--pv-space-1);
-}
+.hint-text.small { font-size: 11px; margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
 
-.mt-2 { margin-top: var(--pv-space-2); }
-.mt-4 { margin-top: var(--pv-space-4); }
-
-/* Generate Section */
+/* ---- Generate ---- */
 .generate-section {
-  position: sticky;
-  bottom: 0;
-  z-index: 4;
-  margin: 18px -2px 0;
-  padding: 14px 0 0;
-  background: linear-gradient(to top, #fafaf8 72%, rgb(250 250 248 / 0));
+  margin: 16px 0 0;
+  padding: 18px 0 0;
+  border-top: 1px solid #f0efec;
 }
 
 .generate-btn {
@@ -1870,62 +1633,58 @@ const openUrl = (url: string) => {
   height: 48px;
   font-size: 15px;
   font-weight: 600;
-  border-radius: 18px;
+  border-radius: 14px;
   background: #171615;
   border: none;
-  box-shadow: 0 12px 28px rgb(20 20 20 / 0.14);
-  transition: all var(--pv-transition);
+  box-shadow: 0 8px 24px rgb(20 20 20 / 0.12);
+  transition: all 0.15s;
 }
 
 .generate-btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   background: #2b2926;
-  box-shadow: 0 16px 32px rgb(20 20 20 / 0.18);
+  box-shadow: 0 12px 28px rgb(20 20 20 / 0.16);
 }
 
 .generate-btn:active { transform: translateY(0); }
-
-.generate-btn .el-icon { margin-right: var(--pv-space-2); }
+.generate-btn .el-icon { margin-right: 6px; }
 
 .progress-container {
   display: flex;
   align-items: center;
-  gap: var(--pv-space-3);
-  margin-top: var(--pv-space-4);
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .generate-progress { flex: 1; }
-
-.generate-progress :deep(.el-progress-bar__inner) {
-  background: linear-gradient(90deg, var(--pv-primary-light), #7c3aed);
-}
+.generate-progress :deep(.el-progress-bar__inner) { background: linear-gradient(90deg, #818cf8, #7c3aed); }
 
 .progress-text {
   font-weight: 600;
   font-size: 14px;
-  color: var(--pv-primary);
+  color: #4f46e5;
   min-width: 40px;
 }
 
-/* Output Card */
+/* ---- Output ---- */
 .output-card {
-  border-color: #dfe8e4;
-  background: #f7fbf9;
+  border-color: #d1fae5;
+  background: #f7fdf9;
 }
 
 .output-video {
   width: 100%;
   max-height: 360px;
-  border-radius: var(--pv-radius);
+  border-radius: 12px;
   background: #000;
-  margin-bottom: var(--pv-space-4);
+  margin-bottom: 12px;
 }
 
 .output-info {
   display: flex;
   flex-direction: column;
-  gap: var(--pv-space-2);
-  margin-bottom: var(--pv-space-4);
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .info-row {
@@ -1934,12 +1693,31 @@ const openUrl = (url: string) => {
   font-size: 13px;
 }
 
-.info-label { color: var(--pv-text-secondary); }
-.info-value { font-weight: 600; color: var(--pv-text); }
+.info-label { color: #6b7280; }
+.info-value { font-weight: 600; color: #252321; }
 
 .download-btn { width: 100%; }
 
-/* Transitions */
+/* ---- Divider ---- */
+.step-card-body :deep(.el-divider) {
+  margin: 16px 0;
+  border-color: #f0efec;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 720px) {
+  .workspace-header { padding: 0 16px; }
+  .step-progress { padding: 12px 16px; }
+  .step-scroll { padding: 16px 16px 100px; }
+  .source-grid { grid-template-columns: repeat(2, 1fr); }
+  .template-gallery { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .step-node-label { display: none; }
+}
+
+/* ---- Transitions ---- */
 .slide-fade-enter-active { transition: all 0.3s ease-out; }
 .slide-fade-leave-active { transition: all 0.2s ease-in; }
 .slide-fade-enter-from { transform: translateY(-10px); opacity: 0; }

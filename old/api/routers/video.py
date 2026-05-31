@@ -16,7 +16,12 @@ Video generation endpoints
 Supports both synchronous and asynchronous video generation.
 """
 
+import base64
 import os
+import uuid
+from pathlib import Path
+
+import httpx
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
@@ -27,8 +32,42 @@ from api.schemas.video import (
     VideoGenerateAsyncResponse,
 )
 from api.tasks import task_manager, TaskType
+from pixelle_video.services.cloud_media_service import CloudMediaService
 
 router = APIRouter(prefix="/video", tags=["Video Generation"])
+
+
+def image_to_data_url(image_path: str) -> str:
+    """Convert a local image file to base64 data URL for cloud API consumption."""
+    path = Path(image_path)
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    if not path.exists():
+        raise FileNotFoundError(f"Image file not found: {path}")
+
+    mime_types = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+        ".gif": "image/gif", ".webp": "image/webp",
+    }
+    mime_type = mime_types.get(path.suffix.lower(), "image/jpeg")
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    return f"data:{mime_type};base64,{b64}"
+
+
+async def download_video(url: str) -> str:
+    """Download remote video to local output directory."""
+    output_dir = Path("output/uploads")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4().hex[:12]}.mp4"
+    save_path = output_dir / filename
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=120, write=30, pool=30)) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        with open(save_path, "wb") as f:
+            f.write(resp.content)
+    return str(save_path)
 
 
 def extract_generation_result(result) -> tuple[str, float]:
@@ -121,11 +160,27 @@ def build_asset_based_params(request_body: VideoGenerateRequest) -> dict:
     }
 
 
+def build_image_to_video_params(request_body: VideoGenerateRequest) -> dict:
+    if not request_body.image:
+        raise ValueError("image is required for image_to_video pipeline")
+
+    prompt = request_body.prompt_text or request_body.text or ""
+    return {
+        "is_cloud_direct": True,
+        "prompt": prompt,
+        "image_path": request_body.image,
+        "media_provider": getattr(request_body, "media_provider", None),
+        "media_model": getattr(request_body, "media_model", None),
+    }
+
+
 def build_video_params(request_body: VideoGenerateRequest) -> dict:
     if request_body.pipeline == "standard":
         return build_standard_params(request_body)
     if request_body.pipeline == "asset_based":
         return build_asset_based_params(request_body)
+    if request_body.pipeline == "image_to_video":
+        return build_image_to_video_params(request_body)
 
     raise ValueError(f"Pipeline '{request_body.pipeline}' is not available via the API yet")
 
@@ -163,21 +218,14 @@ def path_to_url(request: Request, file_path: str) -> str:
     is_absolute = os.path.isabs(file_path) or Path(file_path).is_absolute()
     
     if is_absolute:
-        # Find "output" in the path and get everything after it
-        # Split by / to work with normalized paths
+        # Find "output" in the path and keep everything from "output" onward
         parts = file_path.split("/")
         try:
             output_idx = parts.index("output")
-            # Get all parts after "output" and join them
-            relative_parts = parts[output_idx + 1:]
-            file_path = "/".join(relative_parts)
+            file_path = "/".join(parts[output_idx:])
         except ValueError:
-            # If "output" not in path, use the filename only
             file_path = Path(file_path).name
-    else:
-        # If relative path starting with "output/", remove it
-        if file_path.startswith("output/"):
-            file_path = file_path[7:]  # Remove "output/"
+    # else: relative path already correct (e.g. "output/uploads/xxx.mp4")
     
     # Build URL using request's base_url (automatically matches the request host)
     base_url = str(request.base_url).rstrip('/')
@@ -192,34 +240,40 @@ async def generate_video_sync(
 ):
     """
     Generate video synchronously
-    
+
     This endpoint blocks until video generation is complete.
     Suitable for small videos (< 30 seconds).
-    
+
     **Note**: May timeout for large videos. Use `/generate/async` instead.
-    
+
     Request body includes all video generation parameters.
     See VideoGenerateRequest schema for details.
-    
+
     Returns path to generated video, duration, and file size.
     """
     try:
         logger.info(f"Sync video generation: {request_body.text[:50]}...")
-        
+
         video_params = build_video_params(request_body)
+
+        # Cloud-direct path (image_to_video)
+        if video_params.pop("is_cloud_direct", False):
+            result = await _execute_cloud_direct(video_params, pixelle_video, request, task_id=uuid.uuid4().hex)
+            return VideoGenerateResponse(**result)
+
+        # Standard pipeline path
         result = await pixelle_video.generate_video(**video_params)
         video_path, duration = extract_generation_result(result)
         file_size = os.path.getsize(video_path) if os.path.exists(video_path) else 0
-        
-        # Convert path to URL
+
         video_url = path_to_url(request, video_path)
-        
+
         return VideoGenerateResponse(
             video_url=video_url,
             duration=duration,
             file_size=file_size
         )
-        
+
     except ValueError as e:
         logger.error(f"Sync video generation validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -236,60 +290,147 @@ async def generate_video_async(
 ):
     """
     Generate video asynchronously
-    
+
     Creates a background task for video generation.
     Returns immediately with a task_id for tracking progress.
-    
+
     **Workflow:**
     1. Submit video generation request
     2. Receive task_id in response
     3. Poll `/api/tasks/{task_id}` to check status
     4. When status is "completed", retrieve video from result
-    
+
     Request body includes all video generation parameters.
     See VideoGenerateRequest schema for details.
-    
+
     Returns task_id for tracking progress.
     """
     try:
         logger.info(f"Async video generation: {request_body.text[:50]}...")
         video_params = build_video_params(request_body)
-        
+
         # Create task
         task = task_manager.create_task(
             task_type=TaskType.VIDEO_GENERATION,
             request_params=request_body.model_dump()
         )
-        
+
+        is_cloud = video_params.pop("is_cloud_direct", False)
+
         # Define async execution function
         async def execute_video_generation():
-            """Execute video generation in background"""
+            if is_cloud:
+                return await _execute_cloud_direct(video_params, pixelle_video, request, task_id=task.task_id)
+
             result = await pixelle_video.generate_video(**video_params)
             video_path, duration = extract_generation_result(result)
             file_size = os.path.getsize(video_path) if os.path.exists(video_path) else 0
-            
-            # Convert path to URL
+
             video_url = path_to_url(request, video_path)
-            
+
             return {
                 "video_url": video_url,
                 "duration": duration,
                 "file_size": file_size
             }
-        
+
         # Start execution
         await task_manager.execute_task(
             task_id=task.task_id,
             coro_func=execute_video_generation
         )
-        
+
         return VideoGenerateAsyncResponse(
             task_id=task.task_id
         )
-        
+
     except ValueError as e:
         logger.error(f"Async video generation validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Async video generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _execute_cloud_direct(
+    video_params: dict, pixelle_video, request: Request, task_id: str = None
+) -> dict:
+    """Execute cloud-direct video generation (image_to_video)."""
+    from datetime import datetime
+
+    image_url = image_to_data_url(video_params["image_path"])
+    logger.info(f"Cloud-direct i2v: prompt={video_params['prompt'][:50]}...")
+
+    # Build config with optional model override
+    config = dict(pixelle_video.config)
+    video_config = dict(config.get("video_service", {}))
+    if video_params.get("media_provider"):
+        video_config["provider"] = video_params["media_provider"]
+    if video_params.get("media_model"):
+        video_config["model"] = video_params["media_model"]
+    config["video_service"] = video_config
+
+    cloud_service = CloudMediaService(config)
+
+    created_at = datetime.now().isoformat()
+    try:
+        result = await cloud_service.generate_video(
+            prompt=video_params["prompt"],
+            image_url=image_url,
+        )
+
+        # Download to local storage
+        local_path = await download_video(result.url)
+        file_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+        video_url = path_to_url(request, local_path)
+        duration = result.duration or 5.0
+
+        # Persist to history
+        if pixelle_video.persistence and task_id:
+            try:
+                await pixelle_video.persistence.save_task_metadata(task_id, {
+                    "task_id": task_id,
+                    "created_at": created_at,
+                    "completed_at": datetime.now().isoformat(),
+                    "status": "completed",
+                    "input": video_params,
+                    "result": {
+                        "video_url": video_url,
+                        "video_path": local_path,
+                        "duration": duration,
+                        "file_size": file_size,
+                    },
+                    "config": {
+                        "provider": video_config.get("provider"),
+                        "model": video_config.get("model"),
+                    },
+                })
+                logger.info(f"Persisted cloud-direct task: {task_id}")
+            except Exception as e:
+                logger.error(f"Failed to persist cloud-direct task: {e}")
+
+        return {
+            "video_url": video_url,
+            "duration": duration,
+            "file_size": file_size,
+        }
+    except Exception as e:
+        # Persist failure to history too
+        if pixelle_video.persistence and task_id:
+            try:
+                await pixelle_video.persistence.save_task_metadata(task_id, {
+                    "task_id": task_id,
+                    "created_at": created_at,
+                    "completed_at": datetime.now().isoformat(),
+                    "status": "failed",
+                    "input": video_params,
+                    "error": str(e),
+                    "result": {},
+                    "config": {
+                        "provider": video_config.get("provider"),
+                        "model": video_config.get("model"),
+                    },
+                })
+            except Exception:
+                pass
+        raise

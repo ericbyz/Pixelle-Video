@@ -11,8 +11,10 @@ from typing import Optional
 
 import httpx
 from loguru import logger
+from volcenginesdkarkruntime import AsyncArk
 
 from pixelle_video.models.media import MediaResult
+from services.usage_tracker import tracked_call
 
 
 class CloudMediaService:
@@ -53,6 +55,7 @@ class CloudMediaService:
         duration: float = 5.0,
         width: int = 1280,
         height: int = 720,
+        image_url: Optional[str] = None,
         **kwargs,
     ) -> MediaResult:
         """Generate video using cloud API"""
@@ -68,7 +71,7 @@ class CloudMediaService:
             )
 
         if provider == "doubao":
-            return await self._doubao_generate_video(prompt, duration, width, height)
+            return await self._doubao_generate_video(prompt, duration, width, height, image_url=image_url)
 
         raise ValueError(f"Unsupported video provider: {provider}")
 
@@ -112,20 +115,22 @@ class CloudMediaService:
         }
 
         logger.info(f"Calling Ark Image API: {url} model={model} size={size}")
-        timeout = httpx.Timeout(connect=10.0, read=120, write=30, pool=30)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        async with tracked_call("image", model, "generate"):
+            timeout = httpx.Timeout(connect=10.0, read=120, write=30, pool=30)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
 
-        image_url = data["data"][0]["url"]
-        logger.info(f"Image generated: {image_url}")
-        return MediaResult(media_type="image", url=image_url)
+            image_url = data["data"][0]["url"]
+            logger.info(f"Image generated: {image_url}")
+            return MediaResult(media_type="image", url=image_url)
 
     async def _doubao_generate_video(
-        self, prompt: str, duration: float, width: int, height: int
+        self, prompt: str, duration: float, width: int, height: int,
+        image_url: Optional[str] = None,
     ) -> MediaResult:
-        """Generate video via Ark API (SeedDance) - async task + polling"""
+        """Generate video via Ark SDK (SeedDance) - async task + polling"""
         api_key = self.video_service_config.get("api_key", "")
         base_url = self.video_service_config.get("base_url", "").rstrip("/")
         model = self.video_service_config.get("model", "")
@@ -135,65 +140,53 @@ class CloudMediaService:
                 "video_service api_key, base_url, model are all required for doubao provider"
             )
 
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
+        # Determine ratio: adaptive for i2v, calculated for t2v
+        ratio = "adaptive" if image_url else self._width_height_to_ratio(width, height)
 
-        # Determine ratio from width/height
-        ratio = self._width_height_to_ratio(width, height)
+        # Build content array
+        content = []
+        if image_url:
+            content.append({"type": "image_url", "image_url": {"url": image_url}})
+        if prompt:
+            content.append({"type": "text", "text": prompt})
 
-        # Create async task
-        create_url = f"{base_url}/contents/generations/tasks"
-        payload = {
-            "model": model,
-            "content": [{"type": "text", "text": prompt}],
-            "ratio": ratio,
-        }
+        logger.info(f"Calling Ark Video API via SDK: model={model} ratio={ratio} i2v={bool(image_url)}")
 
-        logger.info(f"Calling Ark Video API: {create_url} model={model} ratio={ratio}")
-        timeout = httpx.Timeout(connect=10.0, read=30, write=30, pool=30)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(create_url, json=payload, headers=headers)
-            resp.raise_for_status()
-            task_data = resp.json()
-
-        task_id = task_data.get("id")
-        if not task_id:
-            raise ValueError(f"No task_id in response: {task_data}")
-
-        logger.info(f"Video task created: {task_id}, polling for result...")
-
-        # Poll for completion
-        poll_url = f"{base_url}/contents/generations/tasks/{task_id}"
-        poll_timeout = httpx.Timeout(connect=10.0, read=30, write=30, pool=30)
-        max_polls = 120  # max 120 * 5s = 10 minutes
-        for i in range(max_polls):
-            await asyncio.sleep(5)
-            async with httpx.AsyncClient(timeout=poll_timeout) as client:
-                resp = await client.get(poll_url, headers=headers)
-                resp.raise_for_status()
-                status_data = resp.json()
-
-            status = status_data.get("status", "")
-            logger.debug(f"Video task {task_id} status: {status}")
-
-            if status == "succeeded":
-                video_url = status_data.get("content", {}).get("video_url", "")
-                if not video_url:
-                    raise ValueError(f"Task succeeded but no video_url: {status_data}")
-                logger.info(f"Video generated: {video_url}")
-                return MediaResult(
-                    media_type="video",
-                    url=video_url,
-                    duration=duration,
+        client = AsyncArk(api_key=api_key, base_url=base_url)
+        async with tracked_call("video", model, "generate"):
+            try:
+                task = await client.content_generation.tasks.create(
+                    model=model,
+                    content=content,
+                    ratio=ratio,
                 )
+                task_id = task.id
+                logger.info(f"Video task created: {task_id}, polling for result...")
 
-            if status in ("failed", "cancelled", "error"):
-                error_msg = status_data.get("error", {}).get("message", str(status_data))
-                raise ValueError(f"Video generation failed: {error_msg}")
+                max_polls = 120  # max 120 * 5s = 10 minutes
+                for i in range(max_polls):
+                    await asyncio.sleep(5)
+                    result = await client.content_generation.tasks.get(task_id=task_id)
+                    logger.debug(f"Video task {task_id} status: {result.status}")
 
-        raise TimeoutError(f"Video task {task_id} did not complete in time")
+                    if result.status == "succeeded":
+                        video_url = result.content.video_url if result.content else ""
+                        if not video_url:
+                            raise ValueError(f"Task succeeded but no video_url in response")
+                        logger.info(f"Video generated: {video_url}")
+                        return MediaResult(
+                            media_type="video",
+                            url=video_url,
+                            duration=duration,
+                        )
+
+                    if result.status in ("failed", "cancelled", "error"):
+                        error_msg = result.error.message if result.error else str(result.status)
+                        raise ValueError(f"Video generation failed: {error_msg}")
+
+                raise TimeoutError(f"Video task {task_id} did not complete in time")
+            finally:
+                await client.close()
 
     @staticmethod
     def _width_height_to_ratio(width: int, height: int) -> str:

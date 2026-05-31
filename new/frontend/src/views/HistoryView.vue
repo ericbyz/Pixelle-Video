@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -18,6 +18,7 @@ import {
   Film,
 } from '@element-plus/icons-vue'
 import { useHistoryStore } from '@/stores/history'
+import { usePipelineStore } from '@/stores/pipeline'
 import type { Task, TaskStatus } from '@/types'
 
 const { t } = useI18n()
@@ -101,8 +102,44 @@ const getVideoUrl = (task: Task) => {
   return ''
 }
 
-onMounted(() => {
-  store.fetchTasks()
+const pipelineStore = usePipelineStore()
+
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+const hasActiveTasks = computed(() =>
+  store.tasks.some((t) => t.status === 'pending' || t.status === 'running'),
+)
+
+const shouldPoll = computed(() =>
+  hasActiveTasks.value || pipelineStore.isGenerating,
+)
+
+const startPolling = () => {
+  if (pollTimer) return
+  pollTimer = setInterval(() => {
+    store.fetchTasks()
+  }, 3000)
+}
+
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+watch(shouldPoll, (active) => {
+  if (active) startPolling()
+  else stopPolling()
+})
+
+onMounted(async () => {
+  await store.fetchTasks()
+  if (shouldPoll.value) startPolling()
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 
 const openUrl = (url: string) => {

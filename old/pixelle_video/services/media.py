@@ -24,6 +24,7 @@ from loguru import logger
 
 from pixelle_video.services.comfy_base_service import ComfyBaseService
 from pixelle_video.services.cloud_media_service import CloudMediaService
+from services.usage_tracker import tracked_call
 from pixelle_video.models.media import MediaResult
 
 
@@ -192,60 +193,60 @@ class MediaService(ComfyBaseService):
 
         # 4. Execute workflow using shared ComfyKit instance from core
         try:
-            # Get shared ComfyKit instance (lazy initialization + config hot-reload)
-            kit = await self.core._get_or_create_comfykit()
+            async with tracked_call(media_type, workflow_info.get("key", workflow or "comfyui"), "generate"):
+                # Get shared ComfyKit instance (lazy initialization + config hot-reload)
+                kit = await self.core._get_or_create_comfykit()
 
-            # Determine what to pass to ComfyKit based on source
-            if workflow_info["source"] == "runninghub" and "workflow_id" in workflow_info:
-                # RunningHub: pass workflow_id (ComfyKit will use runninghub backend)
-                workflow_input = workflow_info["workflow_id"]
-                logger.info(f"Executing RunningHub workflow: {workflow_input}")
-            else:
-                # Selfhost: pass file path (ComfyKit will use local ComfyUI)
-                workflow_input = workflow_info["path"]
-                logger.info(f"Executing selfhost workflow: {workflow_input}")
+                # Determine what to pass to ComfyKit based on source
+                if workflow_info["source"] == "runninghub" and "workflow_id" in workflow_info:
+                    # RunningHub: pass workflow_id (ComfyKit will use runninghub backend)
+                    workflow_input = workflow_info["workflow_id"]
+                    logger.info(f"Executing RunningHub workflow: {workflow_input}")
+                else:
+                    # Selfhost: pass file path (ComfyKit will use local ComfyUI)
+                    workflow_input = workflow_info["path"]
+                    logger.info(f"Executing selfhost workflow: {workflow_input}")
 
-            result = await kit.execute(workflow_input, workflow_params)
+                result = await kit.execute(workflow_input, workflow_params)
 
-            # 5. Handle result based on specified media_type
-            if result.status != "completed":
-                error_msg = result.msg or "Unknown error"
-                logger.error(f"Media generation failed: {error_msg}")
-                raise Exception(f"Media generation failed: {error_msg}")
+                if result.status != "completed":
+                    error_msg = result.msg or "Unknown error"
+                    logger.error(f"Media generation failed: {error_msg}")
+                    raise Exception(f"Media generation failed: {error_msg}")
 
-            # Extract media based on specified type
-            if media_type == "video":
-                # Video workflow - get video from result
-                if not result.videos:
-                    logger.error("No video generated (workflow returned no videos)")
-                    raise Exception("No video generated")
+                # Extract media based on specified type
+                if media_type == "video":
+                    # Video workflow - get video from result
+                    if not result.videos:
+                        logger.error("No video generated (workflow returned no videos)")
+                        raise Exception("No video generated")
 
-                video_url = result.videos[0]
-                logger.info(f"Generated video: {video_url}")
+                    video_url = result.videos[0]
+                    logger.info(f"Generated video: {video_url}")
 
-                # Try to extract duration from result (if available)
-                duration = None
-                if hasattr(result, 'duration') and result.duration:
-                    duration = result.duration
+                    # Try to extract duration from result (if available)
+                    duration = None
+                    if hasattr(result, 'duration') and result.duration:
+                        duration = result.duration
 
-                return MediaResult(
-                    media_type="video",
-                    url=video_url,
-                    duration=duration
-                )
-            else:  # image
-                # Image workflow - get image from result
-                if not result.images:
-                    logger.error("No image generated (workflow returned no images)")
-                    raise Exception("No image generated")
+                    return MediaResult(
+                        media_type="video",
+                        url=video_url,
+                        duration=duration
+                    )
+                else:  # image
+                    # Image workflow - get image from result
+                    if not result.images:
+                        logger.error("No image generated (workflow returned no images)")
+                        raise Exception("No image generated")
 
-                image_url = result.images[0]
-                logger.info(f"Generated image: {image_url}")
+                    image_url = result.images[0]
+                    logger.info(f"Generated image: {image_url}")
 
-                return MediaResult(
-                    media_type="image",
-                    url=image_url
-                )
+                    return MediaResult(
+                        media_type="image",
+                        url=image_url
+                    )
 
         except Exception as e:
             logger.error(f"Media generation error: {e}")

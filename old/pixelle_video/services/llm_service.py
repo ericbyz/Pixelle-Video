@@ -170,11 +170,10 @@ class LLMService:
         )
         
         logger.debug(f"LLM call: model={final_model}, base_url={client.base_url}, response_type={response_type}")
-        
+
         try:
             if response_type is not None:
-                # Structured output mode - try beta.chat.completions.parse first
-                return await self._call_with_structured_output(
+                result = await self._call_with_structured_output(
                     client=client,
                     model=final_model,
                     prompt=prompt,
@@ -184,7 +183,6 @@ class LLMService:
                     **kwargs
                 )
             else:
-                # Standard text output mode
                 response = await client.chat.completions.create(
                     model=final_model,
                     messages=[{"role": "user", "content": prompt}],
@@ -192,14 +190,19 @@ class LLMService:
                     max_tokens=max_tokens,
                     **kwargs
                 )
-                
+
                 result = response.choices[0].message.content
                 logger.debug(f"LLM response length: {len(result)} chars")
-                
+
+                # Track usage via unified entry
+                _record_llm(final_model, response, success=True)
                 return result
-        
+
+            return result
+
         except Exception as e:
             logger.error(f"LLM call error (model={final_model}, base_url={client.base_url}): {e}")
+            _record_llm(final_model, success=False, error=str(e))
             raise
     
     async def _call_with_structured_output(
@@ -214,10 +217,10 @@ class LLMService:
     ) -> T:
         """
         Call LLM with structured output support
-        
+
         Uses JSON schema instruction appended to prompt for maximum compatibility
         across all OpenAI-compatible providers (Qwen, DeepSeek, etc.).
-        
+
         Args:
             client: OpenAI client
             model: Model name
@@ -226,14 +229,14 @@ class LLMService:
             temperature: Sampling temperature
             max_tokens: Max tokens
             **kwargs: Additional parameters
-        
+
         Returns:
             Parsed Pydantic model instance
         """
         # Build JSON schema instruction and append to prompt
         json_schema_instruction = self._get_json_schema_instruction(response_type)
         enhanced_prompt = f"{prompt}\n\n{json_schema_instruction}"
-        
+
         # Call LLM with enhanced prompt
         response = await client.chat.completions.create(
             model=model,
@@ -243,9 +246,12 @@ class LLMService:
             **kwargs
         )
         content = response.choices[0].message.content
-        
+
         logger.debug(f"Structured output response length: {len(content)} chars")
-        
+
+        # Track usage via unified entry
+        _record_llm(model, response, success=True)
+
         # Parse JSON from response content
         return self._parse_response_as_model(content, response_type)
     
@@ -337,4 +343,22 @@ You MUST respond with ONLY a valid JSON object (no markdown, no extra text)."""
         model = self.active
         base_url = self._get_config_value("base_url", "default")
         return f"<LLMService model={model!r} base_url={base_url!r}>"
+
+
+def _record_llm(model: str, response=None, success: bool = True, error: str = ""):
+    """Unified tracking entry for LLM calls (with token extraction)."""
+    try:
+        from services.usage_tracker import usage_tracker
+        in_tok = 0
+        out_tok = 0
+        if response and hasattr(response, "usage") and response.usage:
+            in_tok = getattr(response.usage, "prompt_tokens", 0) or 0
+            out_tok = getattr(response.usage, "completion_tokens", 0) or 0
+        usage_tracker.record(
+            service="llm", model=model, action="chat",
+            input_tokens=in_tok, output_tokens=out_tok,
+            success=success, error=error,
+        )
+    except Exception:
+        pass
 
