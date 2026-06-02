@@ -36,6 +36,20 @@ const handleLoadModels = async () => {
   }
 }
 
+// Test ComfyUI connection
+const handleTestComfyUI = async () => {
+  try {
+    const res = await configStore.testComfyUI()
+    if (res.success) {
+      ElMessage.success(res.message || t('settings.comfyui.test_connection_success'))
+    } else {
+      ElMessage.error(res.message || t('settings.comfyui.test_connection_failed'))
+    }
+  } catch (e: any) {
+    ElMessage.error(t('settings.comfyui.test_connection_failed') + ': ' + (e.message || ''))
+  }
+}
+
 // Test connection
 const handleTestConnection = async () => {
   try {
@@ -498,6 +512,15 @@ onMounted(async () => {
                   type="password"
                   show-password
                 />
+              </div>
+              <div class="form-actions">
+                <el-button
+                  :loading="configStore.isTestingComfyUI"
+                  @click="handleTestComfyUI"
+                  :icon="Connection"
+                >
+                  {{ t('settings.comfyui.test_connection') || '测试连接' }}
+                </el-button>
               </div>
             </div>
           </div>

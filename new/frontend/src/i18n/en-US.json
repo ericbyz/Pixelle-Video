@@ -277,7 +277,10 @@
       "runninghub_instance_type": "Machine Spec",
       "runninghub_instance_type_help": "Select RunningHub machine spec",
       "runninghub_instance_24g": "24G VRAM",
-      "runninghub_instance_48g": "48G VRAM"
+      "runninghub_instance_48g": "48G VRAM",
+      "test_connection": "Test Connection",
+      "test_connection_success": "ComfyUI connected successfully",
+      "test_connection_failed": "ComfyUI connection failed"
     },
     "image_service": {
       "title": "Image Generation",

@@ -7,6 +7,8 @@ from schemas.config import (
     ConfigResponse,
     TestLLMRequest,
     TestLLMResponse,
+    TestComfyUIRequest,
+    TestComfyUIResponse,
     LLMPresetResponse,
     LLMModelsResponse,
     VersionResponse,
@@ -117,6 +119,59 @@ async def test_llm_connection(
     except Exception as e:
         logger.error(f"LLM test failed: {e}")
         return TestLLMResponse(success=False, message=str(e))
+
+
+@router.post("/test-comfyui", response_model=TestComfyUIResponse)
+async def test_comfyui_connection(
+    request: TestComfyUIRequest,
+):
+    import json
+    import urllib.request
+    import urllib.error
+    from pixelle_video.config import config_manager
+
+    comfyui_url = request.comfyui_url
+    api_key = request.comfyui_api_key
+
+    if not comfyui_url or comfyui_url == _MASKED:
+        comfyui_url = config_manager.config.comfyui.comfyui_url
+    if not api_key or api_key == _MASKED:
+        api_key = config_manager.config.comfyui.comfyui_api_key
+
+    if not comfyui_url:
+        return TestComfyUIResponse(success=False, message="ComfyUI URL not configured")
+
+    url = f"{comfyui_url.rstrip('/')}/system_stats"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        devices = data.get("devices", [])
+        gpu_info = ""
+        if devices:
+            gpu_names = [d.get("name", "Unknown") for d in devices]
+            gpu_info = f" | GPU: {', '.join(gpu_names)}"
+        return TestComfyUIResponse(
+            success=True,
+            message=f"Connected{gpu_info}",
+            system_info=data,
+        )
+    except urllib.error.HTTPError as e:
+        return TestComfyUIResponse(
+            success=False, message=f"Connection failed: HTTP {e.code}"
+        )
+    except urllib.error.URLError:
+        return TestComfyUIResponse(success=False, message="Cannot connect to ComfyUI server")
+    except TimeoutError:
+        return TestComfyUIResponse(success=False, message="Connection timed out (10s)")
+    except Exception as e:
+        logger.error(f"ComfyUI test failed: {e}")
+        return TestComfyUIResponse(success=False, message=str(e))
 
 
 @router.get("/llm-presets", response_model=LLMPresetResponse)

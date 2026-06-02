@@ -72,6 +72,17 @@ class TestLLMResponse(BaseModel):
     message: str = ""
 
 
+class TestComfyUIRequest(BaseModel):
+    comfyui_url: Optional[str] = None
+    comfyui_api_key: Optional[str] = None
+
+
+class TestComfyUIResponse(BaseModel):
+    success: bool = True
+    message: str = ""
+    system_info: Optional[dict] = None
+
+
 class LLMPresetResponse(BaseModel):
     success: bool = True
     presets: List[Any] = []

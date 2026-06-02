@@ -7,6 +7,7 @@ import {
   getLLMPresets,
   getLLMModels,
   testLLMConnectionWithParams,
+  testComfyUIConnection,
   getImagePresets,
   getVideoPresets,
 } from '@/api/config'
@@ -81,6 +82,7 @@ export const useConfigStore = defineStore('config', () => {
   const isLoading = ref(false)
   const isSaving = ref(false)
   const isTesting = ref(false)
+  const isTestingComfyUI = ref(false)
 
   // Custom model input (when "Custom..." is selected)
   const customModel = ref('')
@@ -326,6 +328,20 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
+  // Test ComfyUI connection
+  async function testComfyUI() {
+    isTestingComfyUI.value = true
+    try {
+      const res: any = await testComfyUIConnection({
+        comfyui_url: comfyui.value.comfyui_url,
+        comfyui_api_key: comfyui.value.comfyui_api_key,
+      })
+      return res
+    } finally {
+      isTestingComfyUI.value = false
+    }
+  }
+
   // Save config to API
   async function save() {
     isSaving.value = true
@@ -386,6 +402,7 @@ export const useConfigStore = defineStore('config', () => {
     isLoading,
     isSaving,
     isTesting,
+    isTestingComfyUI,
 
     // Computed
     presetNames,
@@ -405,6 +422,7 @@ export const useConfigStore = defineStore('config', () => {
     loadVideoPresets,
     fetchModels,
     testConnection,
+    testComfyUI,
     save,
     reset,
     applyPreset,

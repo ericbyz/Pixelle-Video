@@ -35,6 +35,14 @@ export function testLLMConnection() {
   return apiClient.post('/config/test-llm', {})
 }
 
+/** Test ComfyUI connection with specific params */
+export function testComfyUIConnection(params?: {
+  comfyui_url?: string
+  comfyui_api_key?: string
+}) {
+  return apiClient.post('/config/test-comfyui', params || {})
+}
+
 /** Get image generation service presets */
 export function getImagePresets() {
   return apiClient.get('/config/image-presets')
